@@ -126,6 +126,7 @@ const sections: SidebarSection[] = [
     title: 'System',
     links: [
       { name: 'Settings', route: cs('Settings') },
+      { name: 'Content Formula Tool', route: '/admin/content-formula' },
       { name: 'Home', route: cs('Homepage Settings') },
       { name: 'About', route: cs('About Page') },
       { name: 'Services', route: cs('Services Page') },

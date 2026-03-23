@@ -14,6 +14,37 @@ use App\Http\Controllers\Public\LeadController;
 use App\Http\Controllers\Public\PostController as PublicPostController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\ContentFormula\ContentFormulaController;
+
+/*
+|--------------------------------------------------------------------------
+| Existing routes...
+|--------------------------------------------------------------------------
+*/
+
+/*
+|--------------------------------------------------------------------------
+| Admin Content Formula Tool
+|--------------------------------------------------------------------------
+|
+| Admin-only tool for building weighted article idea pools and generating
+| structured content directions.
+|
+*/
+
+Route::middleware(['auth'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::get('/content-formula', [ContentFormulaController::class, 'index'])
+            ->name('content-formula.index');
+
+        Route::post('/content-formula/generate', [ContentFormulaController::class, 'generate'])
+            ->name('content-formula.generate');
+
+        Route::get('/content-formula/config', [ContentFormulaController::class, 'config'])
+            ->name('content-formula.config');
+    });
 
 Route::get('/', function () {
     return Inertia::render('Home');
