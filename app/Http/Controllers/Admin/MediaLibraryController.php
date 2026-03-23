@@ -28,6 +28,13 @@ class MediaLibraryController extends Controller
     {
         $payload = $this->buildIndexPayload($request);
 
+        return Inertia::render('Media/Browser', $payload);
+    }
+
+    public function feed(Request $request)
+    {
+        $payload = $this->buildIndexPayload($request);
+
         return response()->json($payload);
     }
 

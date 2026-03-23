@@ -35,7 +35,6 @@ const showMediaLibrary = ref(false);
 const tagInput = ref('');
 const categorySearch = ref('');
 const tagSearch = ref('');
-
 const QUICK_PICK_LIMIT = 6;
 const showMoreCategories = ref(false);
 const showMoreTags = ref(false);
@@ -449,7 +448,7 @@ const save = () => {
                             id="excerpt"
                             v-model="form.excerpt"
                             rows="3"
-                            class="mt-1 block w-full rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            class="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                         />
                         <InputError :message="form.errors.excerpt" class="mt-2" />
                     </div>
@@ -460,7 +459,7 @@ const save = () => {
                             id="sources"
                             v-model="form.sources"
                             rows="6"
-                            class="mt-1 block w-full rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            class="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                             placeholder="Plain text references…"
                         />
                         <InputError :message="form.errors.sources" class="mt-2" />
@@ -526,188 +525,186 @@ const save = () => {
     <div class="text-sm font-semibold text-gray-900">Taxonomy</div>
 
     <div class="space-y-6">
-        <div class="space-y-3">
-            <div class="flex items-center justify-between gap-3">
-                <InputLabel value="Category (optional)" />
-                <button
-                    v-if="overflowCategories.length"
-                    type="button"
-                    class="text-sm font-medium text-gray-500 underline-offset-2 hover:text-gray-900 hover:underline"
-                    @click="showMoreCategories = !showMoreCategories"
-                >
-                    {{ showMoreCategories ? 'Less' : 'More…' }}
-                </button>
-            </div>
+            <div class="space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                    <InputLabel value="Category (optional)" />
+                    <button
+                        v-if="overflowCategories.length"
+                        type="button"
+                        class="text-sm font-medium text-gray-500 underline-offset-2 hover:text-gray-900 hover:underline"
+                        @click="showMoreCategories = !showMoreCategories"
+                    >
+                        {{ showMoreCategories ? 'Less' : 'More…' }}
+                    </button>
+                </div>
 
-            <TextInput
-                v-model="categorySearch"
-                type="text"
-                class="block h-9 w-full max-w-md"
-                placeholder="Search categories"
-            />
+                <TextInput
+                    v-model="categorySearch"
+                    type="text"
+                    class="block h-9 w-full"
+                    placeholder="Search categories"
+                    
+                />
 
-            <div class="flex flex-wrap gap-2">
-                <button
-                    type="button"
-                    class="rounded-md border px-3 py-1.5 text-sm transition"
-                    :class="form.category_id === null ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:text-gray-900'"
-                    @click="form.category_id = null"
-                >
-                    None
-                </button>
+                <div class="max-h-40 overflow-y-auto pr-1">
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                        type="button"
+                        class="rounded-md border px-3 py-1.5 text-sm transition"
+                        :class="form.category_id === null ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:text-gray-900'"
+                        @click="form.category_id = null"
+                    >
+                        None
+                    </button>
 
-                <button
-                    v-for="category in visibleCategories"
-                    :key="category.id"
-                    type="button"
-                    class="rounded-md border px-3 py-1.5 text-sm transition"
-                    :class="form.category_id === category.id ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:text-gray-900'"
-                    @click="form.category_id = category.id"
-                >
-                    {{ category.name }}
-                </button>
-            </div>
-
-            <div v-if="!filteredCategoriesOptions.length" class="text-sm text-gray-500">
-                No matching categories.
-            </div>
-
-            <div v-if="showMoreCategories && overflowCategories.length" class="max-w-md">
-                <select
-                    class="block h-9 w-full rounded-md border-gray-300 py-1.5 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    @change="selectOverflowCategory"
-                >
-                    <option value="">Choose more categories</option>
-                    <option
-                        v-for="category in overflowCategories"
+                    <button
+                        v-for="category in visibleCategories"
                         :key="category.id"
-                        :value="category.id"
+                        type="button"
+                        class="rounded-md border px-3 py-1.5 text-sm transition"
+                        :class="form.category_id === category.id ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:text-gray-900'"
+                        @click="form.category_id = category.id"
                     >
                         {{ category.name }}
-                    </option>
-                </select>
-            </div>
-
-            <div class="max-w-md">
-                <div class="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">
-                    Add Category
+                    </button>
+                                    </div>
                 </div>
-                <div class="flex items-center gap-2">
-                    <TextInput
-                        v-model="form.new_category"
-                        type="text"
-                        class="block h-9 w-full"
-                        placeholder="New category name"
-                        @keydown.enter.prevent="createCategoryNow"
-                    />
-                    <PrimaryButton
-                        type="button"
-                        class="h-9 shrink-0 px-3 text-sm"
-                        :disabled="isCreatingCategory || !form.new_category.trim()"
-                        @click="createCategoryNow"
+
+                <div v-if="showMoreCategories && overflowCategories.length" class="max-w-md">
+                    <select
+                        class="block h-9 w-full rounded-md border-gray-300 py-1.5 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        @change="selectOverflowCategory"
                     >
-                        {{ isCreatingCategory ? 'Adding…' : 'Add' }}
-                    </PrimaryButton>
+                        <option value="">Choose more categories</option>
+                        <option
+                            v-for="category in overflowCategories"
+                            :key="category.id"
+                            :value="category.id"
+                        >
+                            {{ category.name }}
+                        </option>
+                    </select>
                 </div>
-                <InputError :message="categoryCreateError || form.errors.new_category" class="mt-2" />
+
+                <div class="max-w-md">
+                    <div class="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">
+                        Add Category
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <TextInput
+                            v-model="form.new_category"
+                            type="text"
+                            class="block h-9 w-full"
+                            placeholder="New category name"
+                            @keydown.enter.prevent="createCategoryNow"
+                        />
+                        <PrimaryButton
+                            type="button"
+                            class="h-9 shrink-0 px-3 text-sm"
+                            :disabled="isCreatingCategory || !form.new_category.trim()"
+                            @click="createCategoryNow"
+                        >
+                            {{ isCreatingCategory ? 'Adding…' : 'Add' }}
+                        </PrimaryButton>
+                    </div>
+                    <InputError :message="categoryCreateError || form.errors.new_category" class="mt-2" />
+                </div>
+
+                <InputError :message="form.errors.category_id" class="mt-2" />
             </div>
 
-            <InputError :message="form.errors.category_id" class="mt-2" />
-        </div>
+            <div class="space-y-3 border-t border-gray-100 pt-5">
+                <div class="flex items-center justify-between gap-3">
+                    <InputLabel value="Tags" />
+                    <button
+                        v-if="overflowAvailableTags.length"
+                        type="button"
+                        class="text-sm font-medium text-gray-500 underline-offset-2 hover:text-gray-900 hover:underline"
+                        @click="showMoreTags = !showMoreTags"
+                    >
+                        {{ showMoreTags ? 'Less' : 'More…' }}
+                    </button>
+                </div>
 
-        <div class="space-y-3 border-t border-gray-100 pt-5">
-            <div class="flex items-center justify-between gap-3">
-                <InputLabel value="Tags" />
-                <button
-                    v-if="overflowAvailableTags.length"
-                    type="button"
-                    class="text-sm font-medium text-gray-500 underline-offset-2 hover:text-gray-900 hover:underline"
-                    @click="showMoreTags = !showMoreTags"
-                >
-                    {{ showMoreTags ? 'Less' : 'More…' }}
-                </button>
-            </div>
+                <TextInput
+                    v-model="tagSearch"
+                    type="text"
+                    class="block h-9 w-full"
+                    placeholder="Search tags"
+                    
+                />
 
-            <TextInput
-                v-model="tagSearch"
-                type="text"
-                class="block h-9 w-full max-w-md"
-                placeholder="Search tags"
-            />
-
-            <div class="flex flex-wrap gap-2">
-                <button
-                    v-for="tag in visibleTags"
-                    :key="tag.id"
-                    type="button"
-                    class="rounded-md border px-3 py-1.5 text-sm transition"
-                    :class="form.tag_ids.includes(tag.id) ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:text-gray-900'"
-                    @click="toggleTag(tag.id)"
-                >
-                    {{ tag.name }}
-                </button>
-            </div>
-
-            <div v-if="!filteredTagsOptions.length" class="text-sm text-gray-500">
-                No matching tags.
-            </div>
-
-            <div v-if="showMoreTags && overflowAvailableTags.length" class="max-w-md">
-                <select
-                    class="block h-9 w-full rounded-md border-gray-300 py-1.5 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    @change="selectOverflowTag"
-                >
-                    <option value="">Choose more tags</option>
-                    <option
-                        v-for="tag in overflowAvailableTags"
+                <div class="max-h-40 overflow-y-auto pr-1">
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                        v-for="tag in visibleTags"
                         :key="tag.id"
-                        :value="tag.id"
+                        type="button"
+                        class="rounded-md border px-3 py-1.5 text-sm transition"
+                        :class="form.tag_ids.includes(tag.id) ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:text-gray-900'"
+                        @click="toggleTag(tag.id)"
                     >
                         {{ tag.name }}
-                    </option>
-                </select>
-            </div>
-
-            <div class="max-w-md">
-                <div class="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">
-                    Add Tag
+                    </button>
+                                    </div>
                 </div>
-                <div class="flex items-center gap-2">
-                    <TextInput
-                        v-model="tagInput"
-                        type="text"
-                        class="block h-9 w-full"
-                        placeholder="New tag name"
-                        @keydown.enter.prevent="createTagNow"
-                    />
-                    <PrimaryButton
-                        type="button"
-                        class="h-9 shrink-0 px-3 text-sm"
-                        :disabled="isCreatingTag || !tagInput.trim()"
-                        @click="createTagNow"
+
+                <div v-if="showMoreTags && overflowAvailableTags.length" class="max-w-md">
+                    <select
+                        class="block h-9 w-full rounded-md border-gray-300 py-1.5 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        @change="selectOverflowTag"
                     >
-                        {{ isCreatingTag ? 'Adding…' : 'Add' }}
-                    </PrimaryButton>
+                        <option value="">Choose more tags</option>
+                        <option
+                            v-for="tag in overflowAvailableTags"
+                            :key="tag.id"
+                            :value="tag.id"
+                        >
+                            {{ tag.name }}
+                        </option>
+                    </select>
                 </div>
-                <InputError :message="tagCreateError || (form.errors as any).new_tags" class="mt-2" />
-            </div>
 
-            <div v-if="selectedTags.length" class="flex flex-wrap gap-2 pt-1">
-                <button
-                    v-for="tag in selectedTags"
-                    :key="tag.id"
-                    type="button"
-                    class="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
-                    @click="removeSelectedTag(tag.id)"
-                >
-                    <span>{{ tag.name }}</span>
-                    <span aria-hidden="true">×</span>
-                </button>
-            </div>
+                <div class="max-w-md">
+                    <div class="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">
+                        Add Tag
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <TextInput
+                            v-model="tagInput"
+                            type="text"
+                            class="block h-9 w-full"
+                            placeholder="New tag name"
+                            @keydown.enter.prevent="createTagNow"
+                        />
+                        <PrimaryButton
+                            type="button"
+                            class="h-9 shrink-0 px-3 text-sm"
+                            :disabled="isCreatingTag || !tagInput.trim()"
+                            @click="createTagNow"
+                        >
+                            {{ isCreatingTag ? 'Adding…' : 'Add' }}
+                        </PrimaryButton>
+                    </div>
+                    <InputError :message="tagCreateError || (form.errors as any).new_tags" class="mt-2" />
+                </div>
 
-            <InputError :message="form.errors.tag_ids" class="mt-2" />
+                <div v-if="selectedTags.length" class="flex flex-wrap gap-2 pt-1">
+                    <button
+                        v-for="tag in selectedTags"
+                        :key="tag.id"
+                        type="button"
+                        class="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
+                        @click="removeSelectedTag(tag.id)"
+                    >
+                        <span>{{ tag.name }}</span>
+                        <span aria-hidden="true">×</span>
+                    </button>
+                </div>
+
+                <InputError :message="form.errors.tag_ids" class="mt-2" />
+            </div>
         </div>
-    </div>
 </section>
 
 
@@ -749,7 +746,7 @@ const save = () => {
                         </div>
 
                         <div>
-                            <InputLabel for="og_title" value="OG Title" />
+                            <InputLabel for="og_title" value="OG Title (Share Preview)" />
                             <TextInput
                                 id="og_title"
                                 v-model="form.og_title"
@@ -760,7 +757,7 @@ const save = () => {
                         </div>
 
                         <div>
-                            <InputLabel for="og_image_path" value="OG Image Path" />
+                            <InputLabel for="og_image_path" value="OG Image (Share Preview)" />
                             <TextInput
                                 id="og_image_path"
                                 v-model="form.og_image_path"
@@ -771,7 +768,7 @@ const save = () => {
                         </div>
 
                         <div class="lg:col-span-2">
-                            <InputLabel for="og_description" value="OG Description" />
+                            <InputLabel for="og_description" value="OG Description (Share Preview)" />
                             <textarea
                                 id="og_description"
                                 v-model="form.og_description"

@@ -50,13 +50,13 @@ defineProps<{
 </script>
 
 <template>
-  <Head title="Media Library" />
+  <Head title="Media Browser" />
 
   <AdminLayout>
     <MediaBrowserPanel
-      title="Media Library"
-      description="Upload, browse, and manage site images."
-      route-name="admin.media.index"
+      title="Media Browser"
+      description="Browse and copy image URLs for reuse across the site."
+      route-name="admin.media.browser"
       :folders="folders"
       :filters="filters"
       :media="media"

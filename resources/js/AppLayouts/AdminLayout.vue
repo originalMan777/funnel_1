@@ -1,6 +1,6 @@
 <template>
   <div class="admin-layout flex h-screen w-screen overflow-hidden bg-white text-gray-900">
-    <aside class="w-[180px] shrink-0 border-r border-gray-200 bg-gray-50">
+    <aside class="w-64 shrink-0 border-r border-gray-200 bg-white overflow-hidden">
       <Sidebar />
     </aside>
 

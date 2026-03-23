@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import { resolveLeadIcon } from '@/lib/leadIcons';
 import type { LeadBlockRenderModel } from '@/types/leadBlocks';
+import LeadFloatingCard from '@/components/public/lead/LeadFloatingCard.vue';
 
 type ValuePoint = { icon_key: string; line: string };
 
@@ -11,17 +12,6 @@ const props = defineProps<{
     previewMode?: boolean;
 }>();
 
-const isReady = ref(false);
-
-onMounted(() => {
-    if (props.previewMode) {
-        isReady.value = true;
-        return;
-    }
-    requestAnimationFrame(() => {
-        isReady.value = true;
-    });
-});
 
 const breakdown1 = computed(() => props.model.shortText || '');
 const breakdown2 = computed(() => (props.model.content?.breakdown_line_2 as string) || '');
@@ -46,14 +36,10 @@ const consultHref = computed(() => {
         });
 });
 
-const reveal = (delayMs: number) => {
-    if (!isReady.value) return 'opacity-0 translate-y-2';
-    return `opacity-100 translate-y-0 [transition-delay:${delayMs}ms]`;
-};
 </script>
 
 <template>
-    <section class="relative overflow-hidden rounded-3xl border border-gray-200 bg-white p-4 shadow-sm ring-1 ring-black/5 md:p-6">
+    <LeadFloatingCard :preview-mode="previewMode" surface-class="p-4 md:p-6">
         <div class="pointer-events-none absolute inset-0">
             <div class="absolute -left-24 top-8 h-72 w-72 rounded-full bg-amber-200/35 blur-3xl"></div>
             <div class="absolute -right-24 bottom-10 h-80 w-80 rounded-full bg-rose-200/30 blur-3xl"></div>
@@ -65,14 +51,12 @@ const reveal = (delayMs: number) => {
                 <div class="space-y-3">
                     <p
                         class="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500 transition duration-500 ease-out"
-                        :class="reveal(0)"
                     >
                         Offer
                     </p>
 
                     <h3
                         class="text-2xl font-semibold tracking-tight text-gray-900 transition duration-500 ease-out md:text-3xl"
-                        :class="reveal(60)"
                     >
                         {{ model.title }}
                     </h3>
@@ -80,13 +64,11 @@ const reveal = (delayMs: number) => {
                     <div class="space-y-2">
                         <p
                             class="text-sm font-medium leading-relaxed text-gray-700 transition duration-500 ease-out"
-                            :class="reveal(120)"
                         >
                             {{ breakdown1 || 'Add breakdown line 1 in the Offer editor.' }}
                         </p>
                         <p
                             class="text-sm leading-relaxed text-gray-600 transition duration-500 ease-out"
-                            :class="reveal(180)"
                         >
                             {{ breakdown2 || 'Add breakdown line 2 in the Offer editor.' }}
                         </p>
@@ -99,7 +81,6 @@ const reveal = (delayMs: number) => {
                             v-for="(vp, idx) in valuePoints"
                             :key="idx"
                             class="flex items-start gap-3 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-black/5 transition duration-500 ease-out"
-                            :class="reveal(220 + idx * 70)"
                         >
                             <div class="mt-0.5 grid h-9 w-9 place-items-center rounded-xl bg-stone-50 ring-1 ring-black/5">
                                 <component v-if="iconFor(vp.icon_key)" :is="iconFor(vp.icon_key)" class="h-4 w-4 text-gray-900" />
@@ -128,7 +109,6 @@ const reveal = (delayMs: number) => {
                     <div>
                         <p
                             class="text-sm font-semibold leading-snug transition duration-500 ease-out"
-                            :class="reveal(80)"
                         >
                             {{ ctaLine }}
                         </p>
@@ -136,7 +116,6 @@ const reveal = (delayMs: number) => {
                         <p
                             v-if="model.buttonText"
                             class="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/70 transition duration-500 ease-out"
-                            :class="reveal(140)"
                         >
                             Limited availability
                         </p>
@@ -170,5 +149,5 @@ const reveal = (delayMs: number) => {
                 </div>
             </div>
         </div>
-    </section>
+        </LeadFloatingCard>
 </template>

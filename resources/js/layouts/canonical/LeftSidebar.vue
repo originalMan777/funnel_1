@@ -4,17 +4,16 @@
       <button
         type="button"
         class="sidebar-section-title-row"
-        @click="toggleSection(section.title)"
+        @click="toggleSection(section)"
       >
         <span class="sidebar-section-title">{{ section.title }}</span>
 
         <span
-          v-if="section.links.length > ALWAYS_VISIBLE_LINKS"
           class="sidebar-section-caret"
-          :class="{ open: isExpanded(section.title) }"
+          :class="{ open: isExpanded(section.title), disabled: section.links.length <= ALWAYS_VISIBLE_LINKS }"
           aria-hidden="true"
         >
-          ▾
+          ▸
         </span>
       </button>
 
@@ -78,6 +77,14 @@ const sections: SidebarSection[] = [
   },
 
   {
+    title: 'Media',
+    links: [
+      { name: 'Library', route: '/admin/media' },
+      { name: 'Browser', route: '/admin/media/browser' },
+    ],
+  },
+
+  {
     title: 'Posts',
     links: [
       { name: 'All Posts', route: '/admin/posts' },
@@ -88,36 +95,7 @@ const sections: SidebarSection[] = [
   },
 
   {
-    title: 'Popups',
-    links: [
-      { name: 'All Popups', route: '/admin/popups' },
-      { name: 'Create Popup', route: '/admin/popups/create' },
-      { name: 'Popup Submissions', route: cs('Popup Submissions') },
-    ],
-  },
-
-  {
-    title: 'Media',
-    links: [
-      { name: 'Library', route: '/admin/media' },
-      { name: 'Browser', route: '/admin/media/browser' },
-    ],
-  },
-
-  {
-    title: 'Site Pages',
-    links: [
-      { name: 'Home', route: cs('Homepage Settings') },
-      { name: 'About', route: cs('About Page') },
-      { name: 'Services', route: cs('Services Page') },
-      { name: 'Consultation', route: cs('Consultation Page') },
-      { name: 'Resources', route: cs('Resources Page') },
-      { name: 'Contact', route: cs('Contact Page') },
-    ],
-  },
-
-  {
-    title: 'Leads & Clients',
+    title: 'Leads',
     links: [
       { name: 'Lead Boxes', route: '/admin/lead-boxes' },
       { name: 'Lead Slots', route: '/admin/lead-slots' },
@@ -127,9 +105,33 @@ const sections: SidebarSection[] = [
   },
 
   {
+    title: 'Pop Ups',
+    links: [
+      { name: 'All Popups', route: '/admin/popups' },
+      { name: 'Create Popup', route: '/admin/popups/create' },
+      { name: 'Popup Submissions', route: cs('Popup Submissions') },
+    ],
+  },
+
+  {
+    title: 'Analytics',
+    links: [
+      { name: 'Overview', route: cs('Analytics Overview') },
+      { name: 'Traffic', route: cs('Traffic') },
+      { name: 'Conversions', route: cs('Conversions') },
+    ],
+  },
+
+  {
     title: 'System',
     links: [
       { name: 'Settings', route: cs('Settings') },
+      { name: 'Home', route: cs('Homepage Settings') },
+      { name: 'About', route: cs('About Page') },
+      { name: 'Services', route: cs('Services Page') },
+      { name: 'Consultation', route: cs('Consultation Page') },
+      { name: 'Resources', route: cs('Resources Page') },
+      { name: 'Contact', route: cs('Contact Page') },
     ],
   },
 ]
@@ -137,8 +139,9 @@ const sections: SidebarSection[] = [
 const expanded = reactive<Record<string, boolean>>({})
 
 const isExpanded = (title: string) => !!expanded[title]
-const toggleSection = (title: string) => {
-  expanded[title] = !expanded[title]
+const toggleSection = (section: SidebarSection) => {
+  if (section.links.length <= ALWAYS_VISIBLE_LINKS) return
+  expanded[section.title] = !expanded[section.title]
 }
 
 const visibleLinks = (section: SidebarSection) => section.links.slice(0, ALWAYS_VISIBLE_LINKS)
@@ -161,12 +164,14 @@ watch(
 
 <style scoped>
 .admin-sidebar {
-  width: 240px;
+  width: 100%;
   background-color: #0f172a;
   color: white;
-  height: 100vh;
+  height: 100%;
   padding: 1rem;
   overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .sidebar-section {
@@ -200,7 +205,11 @@ watch(
 }
 
 .sidebar-section-caret.open {
-  transform: rotate(180deg);
+  transform: rotate(90deg);
+}
+
+.sidebar-section-caret.disabled {
+  opacity: 0.35;
 }
 
 .sidebar-link-group {
@@ -227,7 +236,7 @@ watch(
 }
 
 .sidebar-link-sub {
-  padding-left: 0.75rem;
-  opacity: 0.95;
+  padding-left: 0;
+  opacity: 1;
 }
 </style>

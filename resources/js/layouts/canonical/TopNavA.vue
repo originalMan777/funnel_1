@@ -8,10 +8,15 @@ const user = page.props.auth?.user as any
 <template>
   <header class="bg-gray-800 text-white px-4 py-2">
     <div class="flex items-center justify-between">
-      <!-- Left: Brand link -->
-      <Link href="/" class="text-sm font-semibold hover:underline">
-        Home
-      </Link>
+      <!-- Left: Primary nav -->
+      <nav class="flex items-center gap-4">
+        <Link href="/" class="text-sm font-semibold hover:underline">
+          Home
+        </Link>
+        <Link href="/admin/posts" class="text-sm font-semibold text-gray-200 hover:text-white hover:underline">
+          Posts
+        </Link>
+      </nav>
 
       <!-- Right: User profile + logout -->
       <div class="flex items-center gap-3">

@@ -46,7 +46,7 @@ import coverImage from '@/images/cover-1.png'
     </section>
 
     <!-- REST OF PAGE -->
-    <div class="mx-auto max-w-6xl space-y-20 px-6 py-16">
+   <div class="mx-auto max-w-7xl space-y-20 px-6 py-16 md:px-10">
       <LeadSlotRenderer slotKey="home_intro" />
 
       <!-- WHO THIS IS FOR -->
@@ -313,20 +313,7 @@ import coverImage from '@/images/cover-1.png'
 
       <LeadSlotRenderer slotKey="home_bottom" />
 
-      <!-- CTA -->
-      <section class="space-y-6 text-center">
-        <h2 class="text-3xl font-semibold">
-          Ready to Make Your Next Move with Confidence?
-        </h2>
 
-        <p class="mx-auto max-w-2xl text-gray-600">
-          Book a consultation and get professional guidance tailored to your situation.
-        </p>
-
-        <button class="rounded bg-black px-6 py-3 text-white">
-          Schedule Consultation
-        </button>
-      </section>
     </div>
   </FrontLayout>
 </template>

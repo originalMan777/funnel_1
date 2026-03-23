@@ -98,7 +98,7 @@ const loadMedia = async (page = 1) => {
             per_page: String(perPage.value),
         });
 
-        const response = await fetch(`/admin/media/browser?${params.toString()}`, {            headers: {
+        const response = await fetch(`/admin/media/feed?${params.toString()}`, {            headers: {
                 Accept: 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
             },

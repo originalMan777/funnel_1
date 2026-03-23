@@ -16,11 +16,13 @@ const props = defineProps<{
         :model="props.model"
         :preview-mode="props.previewMode"
     />
+
     <ServiceLeadBlock
         v-else-if="props.model.type === 'service'"
         :model="props.model"
         :preview-mode="props.previewMode"
     />
+
     <OfferLeadBlock
         v-else-if="props.model.type === 'offer'"
         :model="props.model"
