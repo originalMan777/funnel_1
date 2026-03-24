@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import PrimaryButton from '@/components/PrimaryButton.vue';
 import SecondaryButton from '@/components/SecondaryButton.vue';
-import TextInput from '@/components/TextInput.vue';
 
 type FolderOption = {
     value: string;
@@ -17,24 +15,34 @@ type MediaItem = {
     url: string;
     size_kb: number;
     modified_at: string;
+    extension?: string;
 };
 
 const props = withDefaults(
     defineProps<{
-        open: boolean;
+        show?: boolean;
+        open?: boolean;
         selectedPath?: string | null;
         defaultFolder?: string;
     }>(),
     {
         selectedPath: null,
-        defaultFolder: 'blog',
-    }
+        defaultFolder: '__root__',
+    },
 );
 
 const emit = defineEmits<{
+    (e: 'update:show', value: boolean): void;
     (e: 'update:open', value: boolean): void;
     (e: 'select', path: string): void;
 }>();
+
+const isOpen = computed(() => props.show ?? props.open ?? false);
+
+const setOpen = (value: boolean) => {
+    emit('update:show', value);
+    emit('update:open', value);
+};
 
 const loading = ref(false);
 const deletingPath = ref<string | null>(null);
@@ -44,6 +52,7 @@ const successMessage = ref('');
 
 const search = ref('');
 const folder = ref(props.defaultFolder);
+const uploadFolder = ref(props.defaultFolder);
 const perPage = ref(24);
 
 const folders = ref<FolderOption[]>([]);
@@ -52,21 +61,53 @@ const currentPage = ref(1);
 const lastPage = ref(1);
 const total = ref(0);
 
+const selectedItem = computed<MediaItem | null>(() => {
+    if (!props.selectedPath) return null;
+    return items.value.find((item) => item.path === props.selectedPath) ?? null;
+});
+
+const previewItem = ref<MediaItem | null>(null);
 const uploadInputRef = ref<HTMLInputElement | null>(null);
+const uploadFile = ref<File | null>(null);
+
+const formattedRange = computed(() => {
+    if (total.value > 0) {
+        const from =
+            items.value.length === 0
+                ? 0
+                : (currentPage.value - 1) * perPage.value + 1;
+        const to = Math.min(currentPage.value * perPage.value, total.value);
+        return `Showing ${from}-${to} of ${total.value} images`;
+    }
+
+    return `${items.value.length} image${items.value.length === 1 ? '' : 's'}`;
+});
+
+const visiblePages = computed(() => {
+    const totalPages = lastPage.value;
+    const current = currentPage.value;
+
+    let start = Math.max(1, current - 2);
+    let end = Math.min(totalPages, start + 4);
+    start = Math.max(1, end - 4);
+
+    const pages: number[] = [];
+
+    for (let i = start; i <= end; i++) {
+        pages.push(i);
+    }
+
+    return pages;
+});
 
 const getCsrfToken = () => {
-    const metaToken =
-        document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
-    if (metaToken) {
-        return metaToken;
-    }
+    const metaToken = document
+        .querySelector('meta[name="csrf-token"]')
+        ?.getAttribute('content');
+    if (metaToken) return metaToken;
 
     const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-
-    if (!match) {
-        return '';
-    }
+    if (!match) return '';
 
     return decodeURIComponent(match[1]);
 };
@@ -77,48 +118,142 @@ const clearMessages = () => {
 };
 
 const close = () => {
-    emit('update:open', false);
+    previewItem.value = null;
+    setOpen(false);
 };
 
 const openUploadPicker = () => {
     uploadInputRef.value?.click();
 };
 
-const loadMedia = async (page = 1) => {
-    if (!props.open) return;
+const openPreview = (item: MediaItem) => {
+    previewItem.value = item;
+};
+
+const closePreview = () => {
+    previewItem.value = null;
+};
+
+const selectItem = (item: MediaItem) => {
+    emit('select', item.path);
+    close();
+};
+
+const formatDate = (value: string | null) => {
+    if (!value) return '—';
+
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+
+    return d.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+    });
+};
+
+const fetchMediaPayload = async (targetFolder: string, page = 1) => {
+    const params = new URLSearchParams({
+        page: String(page),
+        folder: targetFolder,
+        search: search.value,
+        per_page: String(perPage.value),
+    });
+
+    const response = await fetch(
+        `${route('admin.media.feed')}?${params.toString()}`,
+        {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+        },
+    );
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        throw new Error(payload.message || 'Failed to load media.');
+    }
+
+    return payload;
+};
+
+const applyPayload = (payload: any) => {
+    folders.value = payload.folders || [];
+    items.value = payload.media?.data || [];
+    currentPage.value = payload.media?.current_page || 1;
+    lastPage.value = payload.media?.last_page || 1;
+    total.value = payload.media?.total || items.value.length || 0;
+
+    if (
+        !folders.value.some((option) => option.value === uploadFolder.value) &&
+        folders.value.length
+    ) {
+        uploadFolder.value = folder.value;
+    }
+
+    if (previewItem.value) {
+        previewItem.value =
+            items.value.find((item) => item.path === previewItem.value?.path) ??
+            null;
+    }
+};
+
+const loadMedia = async (page = 1, allowFallback = true) => {
+    if (!isOpen.value) return;
 
     loading.value = true;
     clearMessages();
 
     try {
-        const params = new URLSearchParams({
-            page: String(page),
-            folder: folder.value,
-            search: search.value,
-            per_page: String(perPage.value),
-        });
+        let payload = await fetchMediaPayload(folder.value, page);
+        applyPayload(payload);
 
-        const response = await fetch(`/admin/media/feed?${params.toString()}`, {            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-            credentials: 'same-origin',
-        });
+        const availableFolders = folders.value.map((option) => option.value);
 
-        const payload = await response.json();
-
-        if (!response.ok) {
-            throw new Error(payload.message || 'Failed to load media.');
+        if (
+            !availableFolders.includes(folder.value) &&
+            availableFolders.length
+        ) {
+            folder.value = availableFolders[0];
+            payload = await fetchMediaPayload(folder.value, 1);
+            applyPayload(payload);
         }
 
-        folders.value = payload.folders || [];
-        items.value = payload.media?.data || [];
-        currentPage.value = payload.media?.current_page || 1;
-        lastPage.value = payload.media?.last_page || 1;
-        total.value = payload.media?.total || 0;
+        if (
+            allowFallback &&
+            items.value.length === 0 &&
+            availableFolders.length
+        ) {
+            const preferredOrder = Array.from(
+                new Set(
+                    [
+                        props.defaultFolder,
+                        '__root__',
+                        'blog',
+                        ...availableFolders,
+                    ].filter(Boolean),
+                ),
+            ) as string[];
 
-        if (!folders.value.find((f) => f.value === folder.value) && folders.value.length) {
-            folder.value = folders.value[0].value;
+            for (const candidate of preferredOrder) {
+                if (
+                    !availableFolders.includes(candidate) ||
+                    candidate === folder.value
+                )
+                    continue;
+
+                const candidatePayload = await fetchMediaPayload(candidate, 1);
+                const candidateItems = candidatePayload.media?.data || [];
+
+                if (candidateItems.length > 0) {
+                    folder.value = candidate;
+                    applyPayload(candidatePayload);
+                    break;
+                }
+            }
         }
     } catch (error: any) {
         errorMessage.value = error?.message || 'Failed to load media.';
@@ -128,12 +263,72 @@ const loadMedia = async (page = 1) => {
 };
 
 const applySearch = () => {
-    loadMedia(1);
+    loadMedia(1, false);
 };
 
-const selectItem = (item: MediaItem) => {
-    emit('select', item.path);
-    emit('update:open', false);
+const onUploadFileChange = (event: Event) => {
+    const input = event.target as HTMLInputElement;
+    uploadFile.value = input.files?.[0] ?? null;
+};
+
+const uploadImage = async () => {
+    if (!uploadFile.value) {
+        errorMessage.value = 'Choose an image first.';
+        successMessage.value = '';
+        return;
+    }
+
+    uploading.value = true;
+    clearMessages();
+
+    try {
+        const formData = new FormData();
+        formData.append('folder', uploadFolder.value);
+        formData.append('image', uploadFile.value);
+
+        const response = await fetch(route('admin.media.store'), {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken(),
+                'X-XSRF-TOKEN': getCsrfToken(),
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+            body: formData,
+        });
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(payload.message || 'Failed to upload image.');
+        }
+
+        successMessage.value = payload.message || 'Image uploaded.';
+        folder.value = uploadFolder.value;
+        await loadMedia(1, false);
+
+        if (payload.item?.path) {
+            const uploadedItem =
+                items.value.find((item) => item.path === payload.item.path) ??
+                ({
+                    ...payload.item,
+                    extension: payload.item.extension ?? '',
+                } as MediaItem);
+
+            previewItem.value = uploadedItem;
+        }
+
+        uploadFile.value = null;
+
+        if (uploadInputRef.value) {
+            uploadInputRef.value.value = '';
+        }
+    } catch (error: any) {
+        errorMessage.value = error?.message || 'Failed to upload image.';
+    } finally {
+        uploading.value = false;
+    }
 };
 
 const copyPath = async (path: string) => {
@@ -148,9 +343,7 @@ const copyPath = async (path: string) => {
 };
 
 const deleteItem = async (item: MediaItem) => {
-    if (!window.confirm(`Delete ${item.name}?`)) {
-        return;
-    }
+    if (!window.confirm(`Delete ${item.filename || item.name}?`)) return;
 
     deletingPath.value = item.path;
     clearMessages();
@@ -177,6 +370,10 @@ const deleteItem = async (item: MediaItem) => {
             throw new Error(payload.message || 'Failed to delete image.');
         }
 
+        if (previewItem.value?.path === item.path) {
+            previewItem.value = null;
+        }
+
         successMessage.value = payload.message || 'Image deleted.';
 
         const nextPage =
@@ -184,7 +381,7 @@ const deleteItem = async (item: MediaItem) => {
                 ? currentPage.value - 1
                 : currentPage.value;
 
-        await loadMedia(nextPage);
+        await loadMedia(nextPage, false);
     } catch (error: any) {
         errorMessage.value = error?.message || 'Failed to delete image.';
     } finally {
@@ -192,104 +389,55 @@ const deleteItem = async (item: MediaItem) => {
     }
 };
 
-const onUploadChange = async (event: Event) => {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-
-    if (!file) return;
-
-    uploading.value = true;
-    clearMessages();
-
-    try {
-        const formData = new FormData();
-        formData.append('folder', folder.value);
-        formData.append('image', file);
-
-        const response = await fetch(route('admin.media.store'), {
-            method: 'POST',
-            headers: {
-                Accept: 'application/json',
-                'X-CSRF-TOKEN': getCsrfToken(),
-                'X-XSRF-TOKEN': getCsrfToken(),
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-            credentials: 'same-origin',
-            body: formData,
-        });
-
-        const payload = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-            throw new Error(payload.message || 'Failed to upload image.');
-        }
-
-        successMessage.value = payload.message || 'Image uploaded.';
-        await loadMedia(1);
-
-        if (payload.item?.path) {
-            emit('select', payload.item.path);
-        }
-    } catch (error: any) {
-        errorMessage.value = error?.message || 'Failed to upload image.';
-    } finally {
-        uploading.value = false;
-
-        if (uploadInputRef.value) {
-            uploadInputRef.value.value = '';
-        }
-    }
-};
-
-const visiblePages = computed(() => {
-    const totalPages = lastPage.value;
-    const current = currentPage.value;
-
-    let start = Math.max(1, current - 2);
-    let end = Math.min(totalPages, start + 4);
-
-    start = Math.max(1, end - 4);
-
-    const pages: number[] = [];
-
-    for (let i = start; i <= end; i++) {
-        pages.push(i);
-    }
-
-    return pages;
-});
-
 watch(
-    () => props.open,
-    (isOpen) => {
-        if (isOpen) {
-            folder.value = props.defaultFolder;
-            loadMedia(1);
+    () => isOpen.value,
+    async (open) => {
+        if (open) {
+            search.value = '';
+            folder.value = props.defaultFolder || '__root__';
+            uploadFolder.value = folder.value;
+            previewItem.value = null;
+            await loadMedia(1, true);
         } else {
             clearMessages();
+            uploadFile.value = null;
+            previewItem.value = null;
         }
-    }
+    },
 );
 
 watch(folder, () => {
-    if (props.open) {
-        loadMedia(1);
+    if (isOpen.value) {
+        uploadFolder.value = folder.value;
+        loadMedia(1, false);
+    }
+});
+
+watch(perPage, () => {
+    if (isOpen.value) {
+        loadMedia(1, false);
     }
 });
 </script>
 
 <template>
     <div
-        v-if="open"
+        v-if="isOpen"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
     >
-        <div class="flex h-[90vh] w-full max-w-7xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
-            <div class="flex items-center justify-between border-b px-5 py-4">
+        <div
+            class="flex h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl bg-[#f7f7f4] shadow-2xl"
+        >
+            <div
+                class="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4"
+            >
                 <div>
-                    <div class="text-lg font-semibold text-gray-900">Media Library</div>
-                    <div class="text-sm text-gray-500">
-                        Search, upload, reuse, copy, and delete images.
-                    </div>
+                    <h2 class="text-2xl font-semibold text-gray-900">
+                        Media Library
+                    </h2>
+                    <p class="mt-1 text-sm text-gray-600">
+                        Upload, browse, and manage site images.
+                    </p>
                 </div>
 
                 <SecondaryButton type="button" @click="close">
@@ -297,154 +445,462 @@ watch(folder, () => {
                 </SecondaryButton>
             </div>
 
-            <div class="border-b px-5 py-4">
-                <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_140px_auto]">
-                    <TextInput
-                        v-model="search"
-                        type="text"
-                        placeholder="Search by filename…"
-                        @keydown.enter.prevent="applySearch"
-                    />
-
-                    <select
-                        v-model="folder"
-                        class="rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    >
-                        <option
-                            v-for="folderOption in folders"
-                            :key="folderOption.value"
-                            :value="folderOption.value"
-                        >
-                            {{ folderOption.label }}
-                        </option>
-                    </select>
-
-                    <PrimaryButton type="button" @click="applySearch">
-                        Search
-                    </PrimaryButton>
-
-                    <div class="flex items-center justify-end gap-2">
-                        <input
-                            ref="uploadInputRef"
-                            type="file"
-                            accept="image/*"
-                            class="hidden"
-                            @change="onUploadChange"
-                        />
-
-                        <SecondaryButton type="button" :disabled="uploading" @click="openUploadPicker">
-                            {{ uploading ? 'Uploading…' : 'Upload Image' }}
-                        </SecondaryButton>
-                    </div>
-                </div>
-
-                <div v-if="errorMessage" class="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-                    {{ errorMessage }}
-                </div>
-
-                <div v-if="successMessage" class="mt-3 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
-                    {{ successMessage }}
-                </div>
-            </div>
-
-            <div class="flex-1 overflow-auto px-5 py-4">
-                <div class="mb-4 flex items-center justify-between text-sm text-gray-600">
-                    <div>{{ total }} image<span v-if="total !== 1">s</span></div>
-                    <div>
-                        Folder: <span class="font-medium text-gray-900">{{ folder }}</span>
-                    </div>
-                </div>
-
-                <div v-if="loading" class="py-16 text-center text-sm text-gray-500">
-                    Loading media…
-                </div>
-
-                <div v-else-if="items.length === 0" class="py-16 text-center text-sm text-gray-500">
-                    No images found.
-                </div>
-
-                <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-                    <div
-                        v-for="item in items"
-                        :key="item.path"
-                        class="overflow-hidden rounded-lg border bg-white"
-                        :class="selectedPath === item.path ? 'border-indigo-500 ring-2 ring-indigo-500' : ''"
-                    >
-                        <button type="button" class="block w-full" @click="selectItem(item)">
-                            <img
-                                :src="item.url"
-                                :alt="item.name"
-                                class="h-40 w-full object-cover"
-                                loading="lazy"
-                                decoding="async"
-                            />
-                        </button>
-
-                        <div class="space-y-2 p-3">
-                            <div class="truncate text-sm font-medium text-gray-900">
-                                {{ item.name }}
-                            </div>
-
-                            <div class="text-xs text-gray-500">
-                                {{ item.size_kb }} KB
-                            </div>
-
-                            <div class="flex flex-wrap gap-2">
-                                <SecondaryButton type="button" @click="selectItem(item)">
-                                    Use Image
-                                </SecondaryButton>
-
-                                <SecondaryButton type="button" @click="copyPath(item.path)">
-                                    Copy Path
-                                </SecondaryButton>
-
-                                <SecondaryButton
-                                    type="button"
-                                    :disabled="deletingPath === item.path"
-                                    @click="deleteItem(item)"
+            <div class="flex-1 overflow-auto p-4">
+                <div
+                    class="flex h-full flex-col rounded-2xl border border-gray-200 bg-white"
+                >
+                    <div class="p-6 pb-4">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <h3
+                                    class="text-2xl font-semibold text-gray-900"
                                 >
-                                    {{ deletingPath === item.path ? 'Deleting…' : 'Delete' }}
-                                </SecondaryButton>
+                                    Media Library
+                                </h3>
+                                <p class="mt-1 text-sm text-gray-600">
+                                    The same browser from the sidebar, now
+                                    available inside post editing.
+                                </p>
+                            </div>
+
+                            <div
+                                class="flex items-center gap-2 text-sm text-gray-500"
+                            >
+                                <span>{{ formattedRange }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="px-6 pb-6">
+                        <div
+                            class="space-y-4 overflow-hidden rounded-2xl border border-gray-200 bg-white"
+                        >
+                            <div class="border-b border-gray-200 p-4">
+                                <div
+                                    class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
+                                >
+                                    <div
+                                        class="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-3"
+                                    >
+                                        <div class="w-full lg:w-64">
+                                            <label
+                                                class="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase"
+                                            >
+                                                Folder
+                                            </label>
+                                            <select
+                                                v-model="folder"
+                                                class="w-full rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                            >
+                                                <option
+                                                    v-for="option in folders"
+                                                    :key="option.value"
+                                                    :value="option.value"
+                                                >
+                                                    {{ option.label }}
+                                                </option>
+                                            </select>
+                                        </div>
+
+                                        <div class="w-full lg:w-72">
+                                            <label
+                                                class="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase"
+                                            >
+                                                Search
+                                            </label>
+                                            <input
+                                                v-model="search"
+                                                type="text"
+                                                placeholder="Search filename…"
+                                                class="w-full rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                @input="applySearch"
+                                            />
+                                        </div>
+
+                                        <div class="w-full lg:w-40">
+                                            <label
+                                                class="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase"
+                                            >
+                                                Per page
+                                            </label>
+                                            <select
+                                                v-model="perPage"
+                                                class="w-full rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                            >
+                                                <option :value="12">12</option>
+                                                <option :value="24">24</option>
+                                                <option :value="48">48</option>
+                                                <option :value="96">96</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        class="rounded-2xl border border-gray-200 bg-gray-50 p-4"
+                                    >
+                                        <h3
+                                            class="text-sm font-semibold text-gray-900"
+                                        >
+                                            Upload image
+                                        </h3>
+                                        <p class="mt-1 text-xs text-gray-500">
+                                            Upload images to the selected
+                                            folder.
+                                        </p>
+
+                                        <div class="mt-4 space-y-3">
+                                            <div>
+                                                <label
+                                                    class="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase"
+                                                >
+                                                    Upload to folder
+                                                </label>
+                                                <select
+                                                    v-model="uploadFolder"
+                                                    class="w-full rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                >
+                                                    <option
+                                                        v-for="option in folders"
+                                                        :key="option.value"
+                                                        :value="option.value"
+                                                    >
+                                                        {{ option.label }}
+                                                    </option>
+                                                </select>
+                                            </div>
+
+                                            <input
+                                                ref="uploadInputRef"
+                                                type="file"
+                                                accept="image/*"
+                                                class="hidden"
+                                                @change="onUploadFileChange"
+                                            />
+
+                                            <div
+                                                class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2"
+                                            >
+                                                <button
+                                                    type="button"
+                                                    class="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                                    @click="openUploadPicker"
+                                                >
+                                                    Choose file
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    class="inline-flex items-center justify-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                                    :disabled="
+                                                        uploading || !uploadFile
+                                                    "
+                                                    @click="uploadImage"
+                                                >
+                                                    {{
+                                                        uploading
+                                                            ? 'Uploading…'
+                                                            : 'Upload'
+                                                    }}
+                                                </button>
+                                            </div>
+
+                                            <p
+                                                v-if="uploadFile"
+                                                class="text-xs text-gray-600"
+                                            >
+                                                Selected: {{ uploadFile.name }}
+                                            </p>
+
+                                            <div
+                                                v-if="
+                                                    errorMessage ||
+                                                    successMessage
+                                                "
+                                                class="rounded-lg px-3 py-2 text-sm"
+                                                :class="
+                                                    successMessage
+                                                        ? 'bg-emerald-50 text-emerald-700'
+                                                        : 'bg-red-50 text-red-700'
+                                                "
+                                            >
+                                                {{
+                                                    successMessage ||
+                                                    errorMessage
+                                                }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="p-4">
+                                <div
+                                    v-if="loading"
+                                    class="rounded-xl border border-dashed border-gray-300 px-6 py-12 text-center"
+                                >
+                                    <p
+                                        class="text-sm font-medium text-gray-700"
+                                    >
+                                        Loading media…
+                                    </p>
+                                </div>
+
+                                <div
+                                    v-else-if="items.length === 0"
+                                    class="rounded-xl border border-dashed border-gray-300 px-6 py-12 text-center"
+                                >
+                                    <p
+                                        class="text-sm font-medium text-gray-700"
+                                    >
+                                        No images found.
+                                    </p>
+                                    <p class="mt-1 text-sm text-gray-500">
+                                        Try another folder, search term, or
+                                        upload a new image.
+                                    </p>
+                                </div>
+
+                                <div
+                                    v-else
+                                    class="h-[184px] overflow-x-hidden overflow-y-auto rounded-xl bg-white ring-1 ring-black/5"
+                                >
+                                    <div
+                                        class="grid grid-cols-4 gap-x-2 gap-y-4 p-2 sm:grid-cols-6 lg:grid-cols-8"
+                                        style="grid-auto-rows: 80px"
+                                    >
+                                        <div
+                                            v-for="item in items"
+                                            :key="item.path"
+                                            class="group relative aspect-square overflow-hidden rounded-lg bg-gray-100 ring-1 ring-black/5"
+                                        >
+                                            <button
+                                                type="button"
+                                                class="relative h-full w-full"
+                                                :title="item.filename"
+                                                @click="openPreview(item)"
+                                            >
+                                                <img
+                                                    :src="item.url"
+                                                    :alt="item.filename"
+                                                    class="h-full w-full object-cover"
+                                                    loading="lazy"
+                                                    decoding="async"
+                                                />
+
+                                                <div
+                                                    class="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1 opacity-0 transition group-hover:opacity-100"
+                                                >
+                                                    <div
+                                                        class="truncate text-[11px] font-medium text-white"
+                                                    >
+                                                        {{ item.filename }}
+                                                    </div>
+                                                </div>
+                                            </button>
+
+                                            <div
+                                                v-if="
+                                                    selectedPath === item.path
+                                                "
+                                                class="pointer-events-none absolute inset-0 ring-2 ring-indigo-500"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div
+                                v-if="lastPage > 1"
+                                class="border-t border-gray-200 p-4"
+                            >
+                                <div
+                                    class="flex flex-wrap items-center justify-between gap-3"
+                                >
+                                    <SecondaryButton
+                                        type="button"
+                                        :disabled="currentPage <= 1"
+                                        @click="
+                                            loadMedia(currentPage - 1, false)
+                                        "
+                                    >
+                                        Previous
+                                    </SecondaryButton>
+
+                                    <div class="flex flex-wrap gap-1">
+                                        <button
+                                            v-for="page in visiblePages"
+                                            :key="page"
+                                            type="button"
+                                            class="rounded-md px-2 py-1 text-sm"
+                                            :class="
+                                                page === currentPage
+                                                    ? 'bg-gray-900 text-white'
+                                                    : 'text-gray-700 hover:bg-gray-100'
+                                            "
+                                            @click="loadMedia(page, false)"
+                                        >
+                                            {{ page }}
+                                        </button>
+                                    </div>
+
+                                    <SecondaryButton
+                                        type="button"
+                                        :disabled="currentPage >= lastPage"
+                                        @click="
+                                            loadMedia(currentPage + 1, false)
+                                        "
+                                    >
+                                        Next
+                                    </SecondaryButton>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <div v-if="lastPage > 1" class="border-t px-5 py-4">
-                <div class="flex items-center justify-between gap-3">
-                    <SecondaryButton
-                        type="button"
-                        :disabled="currentPage <= 1"
-                        @click="loadMedia(currentPage - 1)"
-                    >
-                        Previous
-                    </SecondaryButton>
-
-                    <div class="flex flex-wrap items-center gap-2">
-                        <button
-                            v-for="page in visiblePages"
-                            :key="page"
-                            type="button"
-                            class="rounded-md px-3 py-1 text-sm"
-                            :class="
-                                page === currentPage
-                                    ? 'bg-indigo-600 text-white'
-                                    : 'border border-gray-300 bg-white text-gray-700'
-                            "
-                            @click="loadMedia(page)"
-                        >
-                            {{ page }}
-                        </button>
+        <div
+            v-if="previewItem"
+            class="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4 py-8"
+            @click.self="closePreview"
+        >
+            <div
+                class="w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+            >
+                <div
+                    class="flex items-center justify-between border-b border-gray-200 px-5 py-4"
+                >
+                    <div>
+                        <h3 class="text-base font-semibold text-gray-900">
+                            {{ previewItem.filename }}
+                        </h3>
+                        <p class="mt-1 text-xs text-gray-500">
+                            {{ previewItem.path }}
+                        </p>
                     </div>
 
-                    <SecondaryButton
+                    <button
                         type="button"
-                        :disabled="currentPage >= lastPage"
-                        @click="loadMedia(currentPage + 1)"
+                        class="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        @click="closePreview"
                     >
-                        Next
-                    </SecondaryButton>
+                        Close
+                    </button>
+                </div>
+
+                <div class="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
+                    <div
+                        class="flex items-center justify-center bg-gray-100 p-4"
+                    >
+                        <img
+                            :src="previewItem.url"
+                            :alt="previewItem.filename"
+                            class="max-h-[70vh] w-auto max-w-full rounded-lg object-contain"
+                        />
+                    </div>
+
+                    <div class="space-y-4 border-l border-gray-200 p-5">
+                        <div>
+                            <p
+                                class="text-xs font-semibold tracking-wide text-gray-500 uppercase"
+                            >
+                                Folder
+                            </p>
+                            <p class="mt-1 text-sm text-gray-900">
+                                {{
+                                    previewItem.folder === '__root__'
+                                        ? 'Images Root'
+                                        : previewItem.folder
+                                }}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p
+                                class="text-xs font-semibold tracking-wide text-gray-500 uppercase"
+                            >
+                                Path
+                            </p>
+                            <p class="mt-1 text-sm break-all text-gray-900">
+                                {{ previewItem.path }}
+                            </p>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p
+                                    class="text-xs font-semibold tracking-wide text-gray-500 uppercase"
+                                >
+                                    Extension
+                                </p>
+                                <p class="mt-1 text-sm text-gray-900">
+                                    {{ previewItem.extension || '—' }}
+                                </p>
+                            </div>
+                            <div>
+                                <p
+                                    class="text-xs font-semibold tracking-wide text-gray-500 uppercase"
+                                >
+                                    Size
+                                </p>
+                                <p class="mt-1 text-sm text-gray-900">
+                                    {{ previewItem.size_kb }} KB
+                                </p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <p
+                                class="text-xs font-semibold tracking-wide text-gray-500 uppercase"
+                            >
+                                Modified
+                            </p>
+                            <p class="mt-1 text-sm text-gray-900">
+                                {{ formatDate(previewItem.modified_at) }}
+                            </p>
+                        </div>
+
+                        <div class="flex flex-wrap gap-2 pt-2">
+                            <button
+                                type="button"
+                                class="inline-flex items-center rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800"
+                                @click="selectItem(previewItem)"
+                            >
+                                Use Image
+                            </button>
+
+                            <button
+                                type="button"
+                                class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                @click="copyPath(previewItem.path)"
+                            >
+                                Copy Path
+                            </button>
+
+                            <a
+                                :href="previewItem.url"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            >
+                                Open in new tab
+                            </a>
+
+                            <button
+                                type="button"
+                                class="inline-flex items-center rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                :disabled="deletingPath === previewItem.path"
+                                @click="deleteItem(previewItem)"
+                            >
+                                {{
+                                    deletingPath === previewItem.path
+                                        ? 'Deleting…'
+                                        : 'Delete'
+                                }}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

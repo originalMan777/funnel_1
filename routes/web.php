@@ -32,7 +32,7 @@ use App\Http\Controllers\ContentFormula\ContentFormulaController;
 |
 */
 
-Route::middleware(['auth'])
+Route::middleware(['auth', 'verified', 'admin'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
@@ -89,9 +89,7 @@ Route::middleware(['auth'])->group(function () {
     Route::redirect('/profile', '/settings/profile')->name('profile');
 
     Route::get('/dashboard', function () {
-        return auth()->user()->is_admin
-            ? redirect('/admin')
-            : redirect('/profile');
+        return redirect('/profile');
     })->name('dashboard');
 });
 
@@ -125,6 +123,7 @@ Route::middleware(['auth', 'verified', 'admin'])
 
         Route::get('/media', [MediaLibraryController::class, 'index'])->name('media.index');
         Route::get('/media/browser', [MediaLibraryController::class, 'browser'])->name('media.browser');
+        Route::get('/media/feed', [MediaLibraryController::class, 'feed'])->name('media.feed');
         Route::post('/media', [MediaLibraryController::class, 'store'])->name('media.store');
         Route::delete('/media', [MediaLibraryController::class, 'destroy'])->name('media.destroy');
 

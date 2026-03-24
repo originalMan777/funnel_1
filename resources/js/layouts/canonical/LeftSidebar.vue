@@ -1,243 +1,407 @@
 <template>
-  <nav class="admin-sidebar">
-    <div v-for="section in sections" :key="section.title" class="sidebar-section">
-      <button
-        type="button"
-        class="sidebar-section-title-row"
-        @click="toggleSection(section)"
-      >
-        <span class="sidebar-section-title">{{ section.title }}</span>
-
-        <span
-          class="sidebar-section-caret"
-          :class="{ open: isExpanded(section.title), disabled: section.links.length <= ALWAYS_VISIBLE_LINKS }"
-          aria-hidden="true"
+    <nav class="admin-sidebar" aria-label="Admin navigation">
+        <section
+            v-for="section in sections"
+            :key="section.title"
+            class="sidebar-section"
+            :data-active="hasActiveLink(section)"
+            :data-expandable="isExpandable(section)"
+            :data-expanded="isExpanded(section.title)"
         >
-          ▸
-        </span>
-      </button>
-
-      <ul class="sidebar-link-group">
-        <li v-for="link in visibleLinks(section)" :key="link.name">
-          <Link
-            :href="link.route"
-            class="sidebar-link"
-            :class="{ active: isActive(link.route) }"
-          >
-            {{ link.name }}
-          </Link>
-        </li>
-
-        <template v-if="section.links.length > ALWAYS_VISIBLE_LINKS && isExpanded(section.title)">
-          <li v-for="link in hiddenLinks(section)" :key="link.name">
-            <Link
-              :href="link.route"
-              class="sidebar-link sidebar-link-sub"
-              :class="{ active: isActive(link.route) }"
+            <button
+                v-if="isExpandable(section)"
+                type="button"
+                class="sidebar-expand-zone"
+                :aria-label="`${isExpanded(section.title) ? 'Collapse' : 'Expand'} ${section.title}`"
+                :aria-expanded="isExpanded(section.title)"
+                @click="toggleSection(section.title)"
             >
-              {{ link.name }}
-            </Link>
-          </li>
-        </template>
-      </ul>
-    </div>
-  </nav>
+                <span
+                    class="sidebar-section-caret"
+                    :class="{ open: isExpanded(section.title) }"
+                    aria-hidden="true"
+                >
+                    <svg viewBox="0 0 20 20" fill="none">
+                        <path
+                            d="M5.5 7.5 10 12l4.5-4.5"
+                            stroke="currentColor"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="1.8"
+                        />
+                    </svg>
+                </span>
+            </button>
+
+            <div class="sidebar-section-shell">
+                <div class="sidebar-section-rail">
+                    <span class="sidebar-section-title">{{ section.title }}</span>
+                </div>
+
+                <div class="sidebar-section-main">
+                    <ul class="sidebar-link-group">
+                        <li
+                            v-for="link in visibleLinks(section)"
+                            :key="`${section.title}-${link.name}`"
+                        >
+                            <Link
+                                :href="link.route"
+                                class="sidebar-link"
+                                :class="{ active: isActive(link.route) }"
+                                @click.stop
+                            >
+                                <span>{{ link.name }}</span>
+                            </Link>
+                        </li>
+                    </ul>
+
+                    <div
+                        v-if="isExpandable(section)"
+                        class="sidebar-hidden-links"
+                        :class="{ open: isExpanded(section.title) }"
+                    >
+                        <ul class="sidebar-link-group sidebar-link-group-hidden">
+                            <li
+                                v-for="link in hiddenLinks(section)"
+                                :key="`${section.title}-${link.name}`"
+                            >
+                                <Link
+                                    :href="link.route"
+                                    class="sidebar-link sidebar-link-sub"
+                                    :class="{ active: isActive(link.route) }"
+                                    @click.stop
+                                >
+                                    <span>{{ link.name }}</span>
+                                </Link>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                v-if="showBottomHint(section)"
+                class="sidebar-collapsed-hint"
+                aria-hidden="true"
+            />
+        </section>
+    </nav>
 </template>
 
 <script setup lang="ts">
-import { Link, usePage } from '@inertiajs/vue3'
-import { computed, reactive, watch } from 'vue'
+import { Link, usePage } from '@inertiajs/vue3';
+import { computed, reactive, watch } from 'vue';
 
-type SidebarLink = { name: string; route: string }
-type SidebarSection = { title: string; links: SidebarLink[] }
+type SidebarLink = { name: string; route: string };
+type SidebarSection = { title: string; links: SidebarLink[] };
 
-const ALWAYS_VISIBLE_LINKS = 2
+const ALWAYS_VISIBLE_LINKS = 2;
 
-const page = usePage()
-const currentUrl = computed(() => page.url)
+const page = usePage();
+const currentUrl = computed(() => String(page.url || ''));
+
+const normalizePath = (url: string) => url.replace(/\/+$/, '');
 
 const isActive = (target: string) => {
-  if (target === '/admin') {
-    return currentUrl.value === '/admin' || currentUrl.value === '/admin/'
-  }
+    const current = normalizePath(currentUrl.value);
 
-  const targetBase = target.split('?')[0]
-  return currentUrl.value.startsWith(targetBase)
-}
+    if (target.includes('?')) {
+        return current === normalizePath(target);
+    }
 
-const cs = (label: string) => `/admin/coming-soon?m=${encodeURIComponent(label)}`
+    const targetBase = normalizePath(target.split('?')[0]);
+
+    if (targetBase === '/admin') {
+        return current === '/admin';
+    }
+
+    return current === targetBase || current.startsWith(`${targetBase}/`);
+};
+
+const cs = (label: string) =>
+    `/admin/coming-soon?m=${encodeURIComponent(label)}`;
 
 const sections: SidebarSection[] = [
-  {
-    title: 'Dashboard',
-    links: [
-      { name: 'Overview', route: '/admin' },
-      { name: 'Activity', route: cs('Activity') },
-    ],
-  },
+    {
+        title: 'Dashboard',
+        links: [
+            { name: 'Overview', route: '/admin' },
+            { name: 'Activity', route: cs('Activity') },
+        ],
+    },
+    {
+        title: 'Content',
+        links: [
+            { name: 'Content Formula Tool', route: '/admin/content-formula' },
+        ],
+    },
+    {
+        title: 'Media',
+        links: [
+            { name: 'Library', route: '/admin/media' },
+            { name: 'Browser', route: '/admin/media/browser' },
+        ],
+    },
+    {
+        title: 'Blog',
+        links: [
+            { name: 'All Posts', route: '/admin/posts' },
+            { name: 'Create Post', route: '/admin/posts/create' },
+            { name: 'Categories', route: '/admin/categories' },
+            { name: 'Tags', route: '/admin/tags' },
+        ],
+    },
+    {
+        title: 'Leads',
+        links: [
+            { name: 'Lead Boxes', route: '/admin/lead-boxes' },
+            { name: 'Lead Slots', route: '/admin/lead-slots' },
+            { name: 'All Leads', route: cs('All Leads') },
+            { name: 'Consultations', route: cs('Consultations') },
+        ],
+    },
+    {
+        title: 'Pop-ups',
+        links: [
+            { name: 'All Popups', route: '/admin/popups' },
+            { name: 'Create Popup', route: '/admin/popups/create' },
+            { name: 'Popup Submissions', route: cs('Popup Submissions') },
+        ],
+    },
+    {
+        title: 'System',
+        links: [{ name: 'Settings', route: cs('Settings') }],
+    },
+    {
+        title: 'Analytics',
+        links: [{ name: 'Overview', route: cs('Analytics Overview') }],
+    },
+];
 
-  {
-    title: 'Media',
-    links: [
-      { name: 'Library', route: '/admin/media' },
-      { name: 'Browser', route: '/admin/media/browser' },
-    ],
-  },
+const expanded = reactive<Record<string, boolean>>({});
 
-  {
-    title: 'Posts',
-    links: [
-      { name: 'All Posts', route: '/admin/posts' },
-      { name: 'Create Post', route: '/admin/posts/create' },
-      { name: 'Categories', route: '/admin/categories' },
-      { name: 'Tags', route: '/admin/tags' },
-    ],
-  },
+const visibleLinks = (section: SidebarSection) =>
+    section.links.slice(0, ALWAYS_VISIBLE_LINKS);
+const hiddenLinks = (section: SidebarSection) =>
+    section.links.slice(ALWAYS_VISIBLE_LINKS);
+const isExpandable = (section: SidebarSection) =>
+    section.links.length > ALWAYS_VISIBLE_LINKS;
+const isExpanded = (title: string) => !!expanded[title];
+const hasActiveLink = (section: SidebarSection) =>
+    section.links.some((link) => isActive(link.route));
+const showBottomHint = (section: SidebarSection) =>
+    isExpandable(section) && !isExpanded(section.title);
 
-  {
-    title: 'Leads',
-    links: [
-      { name: 'Lead Boxes', route: '/admin/lead-boxes' },
-      { name: 'Lead Slots', route: '/admin/lead-slots' },
-      { name: 'All Leads', route: cs('All Leads') },
-      { name: 'Consultations', route: cs('Consultations') },
-    ],
-  },
+const setSingleExpandedSection = (title: string | null) => {
+    for (const section of sections) {
+        expanded[section.title] = title !== null && section.title === title;
+    }
+};
 
-  {
-    title: 'Pop Ups',
-    links: [
-      { name: 'All Popups', route: '/admin/popups' },
-      { name: 'Create Popup', route: '/admin/popups/create' },
-      { name: 'Popup Submissions', route: cs('Popup Submissions') },
-    ],
-  },
+const toggleSection = (title: string) => {
+    if (isExpanded(title)) {
+        setSingleExpandedSection(null);
+        return;
+    }
 
-  {
-    title: 'Analytics',
-    links: [
-      { name: 'Overview', route: cs('Analytics Overview') },
-      { name: 'Traffic', route: cs('Traffic') },
-      { name: 'Conversions', route: cs('Conversions') },
-    ],
-  },
-
-  {
-    title: 'System',
-    links: [
-      { name: 'Settings', route: cs('Settings') },
-      { name: 'Content Formula Tool', route: '/admin/content-formula' },
-      { name: 'Home', route: cs('Homepage Settings') },
-      { name: 'About', route: cs('About Page') },
-      { name: 'Services', route: cs('Services Page') },
-      { name: 'Consultation', route: cs('Consultation Page') },
-      { name: 'Resources', route: cs('Resources Page') },
-      { name: 'Contact', route: cs('Contact Page') },
-    ],
-  },
-]
-
-const expanded = reactive<Record<string, boolean>>({})
-
-const isExpanded = (title: string) => !!expanded[title]
-const toggleSection = (section: SidebarSection) => {
-  if (section.links.length <= ALWAYS_VISIBLE_LINKS) return
-  expanded[section.title] = !expanded[section.title]
-}
-
-const visibleLinks = (section: SidebarSection) => section.links.slice(0, ALWAYS_VISIBLE_LINKS)
-const hiddenLinks = (section: SidebarSection) => section.links.slice(ALWAYS_VISIBLE_LINKS)
+    setSingleExpandedSection(title);
+};
 
 watch(
-  () => currentUrl.value,
-  () => {
-    for (const section of sections) {
-      if (section.links.length <= ALWAYS_VISIBLE_LINKS) continue
-
-      const hidden = hiddenLinks(section)
-      const activeInHidden = hidden.some((l) => isActive(l.route))
-      if (activeInHidden) expanded[section.title] = true
-    }
-  },
-  { immediate: true },
-)
+    () => currentUrl.value,
+    () => {
+        const matchingSection = sections.find((section) =>
+            hiddenLinks(section).some((link) => isActive(link.route)),
+        );
+        setSingleExpandedSection(matchingSection?.title ?? null);
+    },
+    { immediate: true },
+);
 </script>
 
 <style scoped>
 .admin-sidebar {
-  width: 100%;
-  background-color: #0f172a;
-  color: white;
-  height: 100%;
-  padding: 1rem;
-  overflow-y: auto;
-  overflow-x: hidden;
-  box-sizing: border-box;
+    width: 240px;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 0.75rem 0.75rem 0.9rem;
+    color: white;
+    background:
+        radial-gradient(
+            circle at top,
+            rgba(255, 255, 255, 0.06),
+            transparent 35%
+        ),
+        linear-gradient(180deg, #0f172a 0%, #111827 100%);
 }
 
 .sidebar-section {
-  margin-bottom: 1.25rem;
+    position: relative;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 1rem;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.025)),
+        rgba(15, 23, 42, 0.92);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
-.sidebar-section-title-row {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
-  text-align: left;
+.sidebar-section[data-active='true'] {
+    border-color: rgba(250, 204, 21, 0.2);
+    background:
+        linear-gradient(180deg, rgba(250, 204, 21, 0.06), rgba(255, 255, 255, 0.025)),
+        rgba(15, 23, 42, 0.96);
+}
+
+.sidebar-section-shell {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr);
+    align-items: stretch;
+    min-height: 100%;
+}
+
+.sidebar-section-rail {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 0.55rem 0.2rem;
+    background: rgba(255, 255, 255, 0.025);
 }
 
 .sidebar-section-title {
-  font-weight: 700;
-  font-size: 0.95rem;
-  margin-bottom: 0.35rem;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: 0.66rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #94a3b8;
+}
+
+.sidebar-section-main {
+    position: relative;
+    min-width: 0;
+    padding: 0.45rem 2.35rem 0.45rem 0.45rem;
+}
+
+.sidebar-expand-zone {
+    position: absolute;
+    inset: 0 0 0 auto;
+    z-index: 2;
+    width: 2.35rem;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
 }
 
 .sidebar-section-caret {
-  font-size: 0.85rem;
-  color: #94a3b8;
-  transform: rotate(0deg);
-  transition: transform 120ms ease-in-out;
-  margin-bottom: 0.35rem;
+    position: absolute;
+    top: 0.62rem;
+    right: 0.7rem;
+    display: inline-flex;
+    width: 0.95rem;
+    height: 0.95rem;
+    color: rgba(226, 232, 240, 0.92);
+    transform: rotate(0deg);
+    transition: transform 160ms ease;
+    pointer-events: none;
 }
 
 .sidebar-section-caret.open {
-  transform: rotate(90deg);
+    transform: rotate(180deg);
 }
 
-.sidebar-section-caret.disabled {
-  opacity: 0.35;
+.sidebar-section-caret svg {
+    width: 100%;
+    height: 100%;
 }
 
 .sidebar-link-group {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.sidebar-link-group-hidden {
+    padding-top: 0.18rem;
+}
+
+.sidebar-hidden-links {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition:
+        grid-template-rows 180ms ease,
+        opacity 140ms ease;
+}
+
+.sidebar-hidden-links > .sidebar-link-group {
+    overflow: hidden;
+}
+
+.sidebar-hidden-links.open {
+    grid-template-rows: 1fr;
+    opacity: 1;
 }
 
 .sidebar-link {
-  display: block;
-  padding: 0.45rem 0;
-  color: #cbd5e1;
-  text-decoration: none;
-  border-radius: 6px;
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    min-height: 2rem;
+    padding: 0.42rem 0.65rem;
+    border-radius: 0.75rem;
+    color: #cbd5e1;
+    text-decoration: none;
+    font-size: 0.88rem;
+    line-height: 1.2;
+    transition:
+        background-color 120ms ease,
+        color 120ms ease;
+}
+
+.sidebar-link + .sidebar-link,
+.sidebar-link-group li + li {
+    margin-top: 0.18rem;
 }
 
 .sidebar-link:hover {
-  color: #ffffff;
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
 }
 
 .sidebar-link.active {
-  font-weight: 700;
-  color: #facc15;
+    background: rgba(250, 204, 21, 0.09);
+    color: #facc15;
+    font-weight: 700;
 }
 
 .sidebar-link-sub {
-  padding-left: 0;
-  opacity: 1;
+    color: #bfd0e3;
+}
+
+.sidebar-collapsed-hint {
+    position: absolute;
+    right: 50%;
+    bottom: 0.32rem;
+    width: 46%;
+    height: 1px;
+    transform: translateX(50%);
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0),
+        rgba(148, 163, 184, 0.28) 18%,
+        rgba(226, 232, 240, 0.46) 50%,
+        rgba(148, 163, 184, 0.28) 82%,
+        rgba(255, 255, 255, 0)
+    );
+    opacity: 0.9;
+    pointer-events: none;
+    transition: opacity 140ms ease;
 }
 </style>

@@ -7,8 +7,6 @@ class ContentFormulaGenerator
     protected array $config;
     protected array $starWeights;
     protected array $requiredGroups;
-    protected array $tier1Groups;
-    protected array $tier2Groups;
     protected array $variationConfig;
 
     public function __construct()
@@ -19,31 +17,25 @@ class ContentFormulaGenerator
             2 => 2,
             3 => 4,
         ]);
-
         $this->requiredGroups = (array) data_get($this->config, 'generator.required_groups', []);
-        $this->tier1Groups = (array) data_get($this->config, 'generator.tier_1_groups', []);
-        $this->tier2Groups = (array) data_get($this->config, 'generator.tier_2_groups', []);
         $this->variationConfig = (array) data_get($this->config, 'generator.variation', []);
     }
 
-    /**
-     * Generate structured content formula rows.
-     *
-     * @param  array  $payload
-     * @return array
-     */
-    public function generate(array $payload): array
+    public function generateBatch(array $settings, array $session): array
     {
-        $groups = (array) ($payload['groups'] ?? []);
-        $resultCount = (int) ($payload['result_count'] ?? data_get($this->config, 'generator.default_result_count', 50));
-        $extraDirection = trim((string) ($payload['extra_direction'] ?? ''));
+        $groups = (array) ($settings['groups'] ?? []);
+        $resultCount = (int) ($settings['result_count'] ?? data_get($this->config, 'generator.default_result_count', 50));
+        $extraDirection = trim((string) ($settings['extra_direction'] ?? ''));
+        $minWords = (int) ($settings['min_words'] ?? data_get($this->config, 'generator.word_range.default_min', 800));
+        $maxWords = (int) ($settings['max_words'] ?? data_get($this->config, 'generator.word_range.default_max', 1400));
 
         $pools = $this->buildPools($groups);
         $this->ensureRequiredPoolsExist($pools);
 
-        $usage = $this->initializeUsage($pools);
-        $usedSignatures = [];
+        $usage = $this->restoreUsage($pools, (array) ($session['usage'] ?? []));
+        $usedSignatures = array_fill_keys((array) ($session['used_signatures'] ?? []), true);
         $rows = [];
+        $lastAcceptedRow = null;
 
         $maxPerRowAttempts = (int) ($this->variationConfig['max_attempts_per_row'] ?? 80);
         $strictAttempts = (int) ($this->variationConfig['strict_attempts'] ?? 30);
@@ -62,42 +54,44 @@ class ContentFormulaGenerator
                     continue;
                 }
 
-                if (!empty($rows) && $softBlockHighSimilarity) {
-                    $previousRow = $rows[count($rows) - 1];
-                    $similarity = $this->coreSimilarityCount($row, $previousRow);
+                if ($lastAcceptedRow && $softBlockHighSimilarity) {
+                    $similarity = $this->coreSimilarityCount($row, $lastAcceptedRow);
 
                     if ($attempt <= $strictAttempts && $similarity >= $softSimilarityThreshold) {
                         continue;
                     }
                 }
 
+                $decorated = $this->decorateRow($row, $minWords, $maxWords);
+                $rows[] = $decorated;
                 $usedSignatures[$signature] = true;
-                $rows[] = $this->decorateRow($row);
                 $this->incrementUsage($usage, $row);
-
+                $lastAcceptedRow = $row;
                 $accepted = true;
                 break;
             }
 
             if (!$accepted) {
-                // Avoid infinite loops if the selected pools are too narrow.
                 break;
             }
         }
 
         return [
+            'rows' => $rows,
             'meta' => [
                 'requested_count' => $resultCount,
                 'generated_count' => count($rows),
                 'estimated_core_combinations' => $this->estimateCoreCombinationCount($pools),
             ],
-            'rows' => $rows,
+            'session' => [
+                'usage' => $usage,
+                'used_signatures' => array_keys($usedSignatures),
+                'generated_count' => (int) ($session['generated_count'] ?? 0) + count($rows),
+                'exhausted' => count($rows) < $resultCount,
+            ],
         ];
     }
 
-    /**
-     * Build normalized pools from payload groups.
-     */
     protected function buildPools(array $groups): array
     {
         return [
@@ -105,7 +99,6 @@ class ContentFormulaGenerator
             'article_types' => $this->normalizePool($groups['article_types'] ?? []),
             'article_formats' => $this->normalizePool($groups['article_formats'] ?? []),
             'vibes' => $this->normalizePool($groups['vibes'] ?? []),
-
             'reader_impacts' => $this->normalizePool($groups['reader_impacts'] ?? []),
             'audiences' => $this->normalizePool($groups['audiences'] ?? []),
             'contexts' => $this->normalizePool($groups['contexts'] ?? []),
@@ -113,9 +106,6 @@ class ContentFormulaGenerator
         ];
     }
 
-    /**
-     * Ensure required groups are present.
-     */
     protected function ensureRequiredPoolsExist(array $pools): void
     {
         foreach ($this->requiredGroups as $groupKey) {
@@ -125,9 +115,6 @@ class ContentFormulaGenerator
         }
     }
 
-    /**
-     * Normalize selected items into a consistent internal structure.
-     */
     protected function normalizePool(array $items): array
     {
         return collect($items)
@@ -147,10 +134,7 @@ class ContentFormulaGenerator
             ->all();
     }
 
-    /**
-     * Initialize usage counters for all pools.
-     */
-    protected function initializeUsage(array $pools): array
+    protected function restoreUsage(array $pools, array $sessionUsage): array
     {
         $usage = [];
 
@@ -158,79 +142,46 @@ class ContentFormulaGenerator
             $usage[$groupKey] = [];
 
             foreach ($items as $item) {
-                $usage[$groupKey][$item['label']] = 0;
+                $label = $item['label'];
+                $usage[$groupKey][$label] = (int) ($sessionUsage[$groupKey][$label] ?? 0);
             }
         }
 
         return $usage;
     }
 
-    /**
-     * Build one candidate row.
-     */
     protected function buildCandidateRow(array $pools, array $usage, string $extraDirection): array
     {
-        $row = [
+        return [
             'topic' => $this->weightedPick('topics', $pools['topics'], $usage)['label'],
             'article_type' => $this->weightedPick('article_types', $pools['article_types'], $usage)['label'],
             'article_format' => $this->weightedPick('article_formats', $pools['article_formats'], $usage)['label'],
             'vibe' => $this->weightedPick('vibes', $pools['vibes'], $usage)['label'],
-
-            // Tier 1: always include if selected
-            'reader_impact' => $this->pickRequiredOptional('reader_impacts', $pools, $usage),
-            'audience' => $this->pickRequiredOptional('audiences', $pools, $usage),
-            'context' => $this->pickRequiredOptional('contexts', $pools, $usage),
-
-            // Tier 2: include lightly/variably
-            'perspective' => $this->pickTier2Optional('perspectives', $pools, $usage),
-
+            'reader_impact' => $this->pickOptional('reader_impacts', $pools, $usage, true),
+            'audience' => $this->pickOptional('audiences', $pools, $usage, true),
+            'context' => $this->pickOptional('contexts', $pools, $usage, true),
+            'perspective' => $this->pickOptional('perspectives', $pools, $usage, false),
             'extra_direction' => $extraDirection !== '' ? $extraDirection : null,
         ];
-
-        return $row;
     }
 
-    /**
-     * Pick a Tier 1 optional category if the pool exists.
-     * Tier 1 is always included if selected by the user.
-     */
-    protected function pickRequiredOptional(string $groupKey, array $pools, array $usage): ?string
+    protected function pickOptional(string $groupKey, array $pools, array $usage, bool $alwaysInclude): ?string
     {
         if (empty($pools[$groupKey])) {
             return null;
         }
 
-        return $this->weightedPick($groupKey, $pools[$groupKey], $usage)['label'];
-    }
+        if (!$alwaysInclude) {
+            $includeProbability = (float) data_get($this->config, 'generator.tier_2.default_include_probability', 0.35);
 
-    /**
-     * Pick a Tier 2 optional category lightly/variably.
-     */
-    protected function pickTier2Optional(string $groupKey, array $pools, array $usage): ?string
-    {
-        if (empty($pools[$groupKey])) {
-            return null;
-        }
-
-        $includeProbability = (float) data_get(
-            $this->config,
-            'generator.tier_2.default_include_probability',
-            0.35
-        );
-
-        $random = mt_rand(1, 1000) / 1000;
-
-        if ($random > $includeProbability) {
-            return null;
+            if ((mt_rand(1, 1000) / 1000) > $includeProbability) {
+                return null;
+            }
         }
 
         return $this->weightedPick($groupKey, $pools[$groupKey], $usage)['label'];
     }
 
-    /**
-     * Weighted balanced pick using:
-     * score = weight / (usage + 1)
-     */
     protected function weightedPick(string $groupKey, array $items, array $usage): array
     {
         if (count($items) === 1) {
@@ -244,8 +195,8 @@ class ContentFormulaGenerator
             $label = $item['label'];
             $weight = (float) ($item['weight'] ?? 1);
             $used = (int) ($usage[$groupKey][$label] ?? 0);
-
             $score = $weight / ($used + 1);
+
             $scored[] = [
                 'item' => $item,
                 'score' => $score,
@@ -272,9 +223,6 @@ class ContentFormulaGenerator
         return $scored[array_key_last($scored)]['item'];
     }
 
-    /**
-     * Build a stable signature for duplicate prevention.
-     */
     protected function buildSignature(array $row): string
     {
         return implode('|', [
@@ -286,13 +234,9 @@ class ContentFormulaGenerator
             $row['audience'] ?? '',
             $row['context'] ?? '',
             $row['perspective'] ?? '',
-            $row['extra_direction'] ?? '',
         ]);
     }
 
-    /**
-     * Compare similarity only on the 4 core fields.
-     */
     protected function coreSimilarityCount(array $a, array $b): int
     {
         $same = 0;
@@ -306,9 +250,6 @@ class ContentFormulaGenerator
         return $same;
     }
 
-    /**
-     * Increment usage counts after accepting a row.
-     */
     protected function incrementUsage(array &$usage, array $row): void
     {
         $map = [
@@ -331,9 +272,6 @@ class ContentFormulaGenerator
         }
     }
 
-    /**
-     * Estimate core combination count for UI summaries/debugging.
-     */
     protected function estimateCoreCombinationCount(array $pools): int
     {
         $topics = max(1, count($pools['topics'] ?? []));
@@ -344,116 +282,198 @@ class ContentFormulaGenerator
         return $topics * $types * $formats * $vibes;
     }
 
-    /**
-     * Decorate the accepted row with display text, title options, and prompt options.
-     */
-    protected function decorateRow(array $row): array
+    protected function decorateRow(array $row, int $minWords, int $maxWords): array
     {
-        return [
-            'topic' => $row['topic'],
-            'article_type' => $row['article_type'],
-            'article_format' => $row['article_format'],
-            'vibe' => $row['vibe'],
-            'reader_impact' => $row['reader_impact'],
-            'audience' => $row['audience'],
-            'context' => $row['context'],
-            'perspective' => $row['perspective'],
-            'extra_direction' => $row['extra_direction'],
+        $standardCount = (int) data_get($this->config, 'generator.prompt_families.standard.count', 2);
+        $optimizedCount = (int) data_get($this->config, 'generator.prompt_families.optimized.count', 3);
+        $lengthInstructions = $this->buildLengthInstructions($minWords, $maxWords, $standardCount + $optimizedCount);
+        $signature = $this->buildSignature($row);
 
-            'summary' => $this->buildSummary($row),
+        return [
+            'id' => substr(sha1($signature), 0, 20),
+            'summary' => $this->buildSummary($row, $minWords, $maxWords),
+            'profile' => [
+                'topic' => $row['topic'],
+                'article_type' => $row['article_type'],
+                'article_format' => $row['article_format'],
+                'vibe' => $row['vibe'],
+                'reader_impact' => $row['reader_impact'],
+                'audience' => $row['audience'],
+                'context' => $row['context'],
+                'perspective' => $row['perspective'],
+                'word_range' => [
+                    'min' => $minWords,
+                    'max' => $maxWords,
+                ],
+            ],
+            'badges' => $this->buildBadges($row, $minWords, $maxWords),
             'title_options' => $this->buildTitleOptions($row),
-            'prompt_options' => $this->buildPromptOptions($row),
+            'standard_prompts' => $this->buildPromptFamily($row, 'standard', array_slice($lengthInstructions, 0, $standardCount)),
+            'optimized_prompts' => $this->buildPromptFamily($row, 'optimized', array_slice($lengthInstructions, $standardCount, $optimizedCount)),
         ];
     }
 
-    /**
-     * Human-readable row summary for the admin UI.
-     */
-    protected function buildSummary(array $row): string
+    protected function buildSummary(array $row, int $minWords, int $maxWords): string
     {
         $parts = [
-            $row['topic'] ?? null,
-            $row['article_type'] ?? null,
-            $row['article_format'] ?? null,
-            $row['vibe'] ?? null,
+            "{$row['topic']} / {$row['article_type']}",
+            "{$row['article_format']} structure",
+            "{$row['vibe']} tone",
         ];
 
-        $optional = array_filter([
-            $row['audience'] ?? null,
-            $row['context'] ?? null,
-            $row['reader_impact'] ?? null,
-            $row['perspective'] ?? null,
-        ]);
-
-        $base = implode(' • ', array_filter($parts));
-
-        if (empty($optional)) {
-            return $base;
+        if ($row['audience']) {
+            $parts[] = "for {$row['audience']}";
         }
 
-        return $base . ' | ' . implode(' • ', $optional);
+        if ($row['context']) {
+            $parts[] = $row['context'];
+        }
+
+        $parts[] = $minWords === $maxWords
+            ? "about {$minWords} words"
+            : "{$minWords}-{$maxWords} words";
+
+        return implode(' • ', $parts);
     }
 
-    /**
-     * Build independent title suggestions from one row.
-     */
+    protected function buildBadges(array $row, int $minWords, int $maxWords): array
+    {
+        $badges = [
+            $row['article_format'],
+            $row['article_type'],
+            "{$row['vibe']} tone",
+            $minWords === $maxWords ? "{$minWords} words" : "{$minWords}-{$maxWords} words",
+        ];
+
+        foreach (['audience', 'context', 'reader_impact', 'perspective'] as $field) {
+            if (!empty($row[$field])) {
+                $badges[] = $row[$field];
+            }
+        }
+
+        return array_values(array_slice(array_unique($badges), 0, 8));
+    }
+
     protected function buildTitleOptions(array $row): array
     {
-        $topic = $row['topic'];
-        $articleType = $row['article_type'];
-        $articleFormat = $row['article_format'];
-        $audience = $row['audience'];
-        $context = $row['context'];
+        $audienceFallback = $row['audience'] ?? 'Readers';
 
-        $titles = [
-            "{$topic} {$articleType}: A {$articleFormat}",
-            "What to Know About {$topic} {$articleType}",
-            "How to Navigate {$topic} {$articleType}",
-            "{$topic} {$articleType} You Should Know",
-            "Common {$topic} {$articleType} to Understand",
+        $titles = collect((array) data_get($this->config, 'title_styles', []))
+            ->map(fn (array $style) => $this->applyTemplate((string) ($style['template'] ?? ''), $this->titleTemplateReplacements($row)))
+            ->filter()
+            ->values()
+            ->all();
+
+        $fallbacks = [
+            "{$row['topic']}: {$row['article_type']} in a {$row['article_format']} Format",
+            "{$row['topic']} for {$row['audience']}" . ($row['context'] ? " {$row['context']}" : ''),
+            "A {$row['vibe']} Take on {$row['topic']} {$row['article_type']}",
+            "{$row['article_format']} Ideas for {$row['topic']} {$row['article_type']}",
+            "What {$audienceFallback} Should Know About {$row['topic']}",
         ];
 
-        if ($audience) {
-            $titles[] = "{$topic} {$articleType} for {$audience}";
-        }
+        $titles = array_values(array_unique(array_filter(array_merge($titles, $fallbacks))));
 
-        if ($context) {
-            $titles[] = "{$topic} {$articleType} {$context}";
-        }
-
-        return array_values(array_unique(array_filter($titles)));
+        return array_slice($titles, 0, 5);
     }
 
-    /**
-     * Build independent prompt suggestions from one row.
-     */
-    protected function buildPromptOptions(array $row): array
+    protected function titleTemplateReplacements(array $row): array
     {
-        $topic = $row['topic'];
-        $articleType = $row['article_type'];
-        $articleFormat = $row['article_format'];
-        $vibe = strtolower((string) $row['vibe']);
-
-        $audienceClause = $row['audience'] ? " for {$row['audience']}" : '';
-        $contextClause = $row['context'] ? " {$row['context']}" : '';
-        $impactClause = $row['reader_impact'] ? " and leave the reader {$row['reader_impact']}" : '';
-        $perspectiveClause = $row['perspective'] ? " from a {$row['perspective']} perspective" : '';
-        $extraDirectionClause = $row['extra_direction'] ? " Also consider this extra direction: {$row['extra_direction']}." : '';
-
-        $prompts = [
-            "Write a {$vibe} {$articleFormat} about {$topic} focused on {$articleType}{$audienceClause}{$contextClause}{$impactClause}{$perspectiveClause}.{$extraDirectionClause}",
-            "Write a practical {$articleFormat} on {$topic} centered around {$articleType}{$audienceClause}{$contextClause}. Keep it {$vibe}{$impactClause}.{$extraDirectionClause}",
-            "Write an engaging article about {$topic} from a {$articleType} angle{$audienceClause}{$contextClause}. Use a {$vibe} tone{$impactClause}{$perspectiveClause}.{$extraDirectionClause}",
-            "Write an insightful {$articleFormat} about {$topic} exploring {$articleType}{$audienceClause}{$contextClause}{$perspectiveClause}.{$impactClause}{$extraDirectionClause}",
-            "Write a results-focused {$articleFormat} about {$topic} based on {$articleType}{$audienceClause}{$contextClause}. Keep it {$vibe}{$impactClause}.{$extraDirectionClause}",
+        return [
+            ':topic' => $row['topic'],
+            ':article_type' => $row['article_type'],
+            ':article_format' => $row['article_format'],
+            ':vibe' => $row['vibe'],
         ];
-
-        return array_values(array_unique(array_map(fn ($prompt) => trim(preg_replace('/\s+/', ' ', $prompt)), $prompts)));
     }
 
-    /**
-     * Map stars to generation weight.
-     */
+    protected function buildPromptFamily(array $row, string $family, array $lengthInstructions): array
+    {
+        $templates = (array) data_get($this->config, "prompt_styles.{$family}", []);
+        $prompts = [];
+
+        foreach ($templates as $index => $template) {
+            $prompts[] = $this->applyTemplate(
+                (string) ($template['template'] ?? ''),
+                $this->templateReplacements($row, $lengthInstructions[$index] ?? '')
+            );
+        }
+
+        return array_values(array_slice(array_unique(array_filter($prompts)), 0, count($templates)));
+    }
+
+    protected function buildLengthInstructions(int $minWords, int $maxWords, int $count): array
+    {
+        if ($count <= 0) {
+            return [];
+        }
+
+        if ($minWords === $maxWords) {
+            return array_fill(0, $count, "Target approximately {$minWords} words.");
+        }
+
+        $range = max(1, $maxWords - $minWords);
+        $window = max(75, (int) floor($range / 4));
+        $anchors = [0.14, 0.32, 0.5, 0.72, 0.9];
+        $instructions = [];
+
+        for ($i = 0; $i < $count; $i++) {
+            $anchor = $anchors[$i] ?? min(1, $i / max(1, $count - 1));
+            $center = (int) round($minWords + ($range * $anchor));
+            $targetMin = max($minWords, $center - (int) floor($window / 2));
+            $targetMax = min($maxWords, $center + (int) floor($window / 2));
+
+            if ($targetMin >= $targetMax) {
+                $instructions[] = "Target approximately {$center} words.";
+                continue;
+            }
+
+            $instructions[] = "Aim for roughly {$targetMin} to {$targetMax} words.";
+        }
+
+        return $instructions;
+    }
+
+    protected function templateReplacements(array $row, string $lengthInstruction): array
+    {
+        $readerImpact = $row['reader_impact'] ? $this->lowercaseValue($row['reader_impact']) : 'well equipped';
+
+        return [
+            ':topic' => $row['topic'],
+            ':article_type' => $this->lowercaseValue($row['article_type']),
+            ':article_format' => $this->lowercaseValue($row['article_format']),
+            ':vibe' => $this->lowercaseValue($row['vibe']),
+            ':audience_clause' => $row['audience'] ? ' for ' . $row['audience'] : '',
+            ':context_clause' => $row['context'] ? ' in the context of ' . $row['context'] : '',
+            ':perspective_clause' => $row['perspective'] ? ' from a ' . $row['perspective'] . ' perspective' : '',
+            ':impact_sentence' => $row['reader_impact'] ? 'Leave the reader ' . $readerImpact . '. ' : '',
+            ':length_instruction' => $lengthInstruction !== '' ? $lengthInstruction : '',
+            ':extra_direction_sentence' => $row['extra_direction'] ? ' Also incorporate this extra direction: ' . $row['extra_direction'] . '.' : '',
+            ':reader_impact_lower' => $readerImpact,
+            ':audience_fallback' => $row['audience'] ?? 'the intended reader',
+            ':context_fallback' => $row['context'] ?? 'the current market context',
+        ];
+    }
+
+    protected function applyTemplate(string $template, array $replacements): string
+    {
+        $text = strtr($template, $replacements);
+        $text = preg_replace('/\s+/', ' ', $text) ?? $text;
+        $text = preg_replace('/\s+\./', '.', $text) ?? $text;
+        $text = preg_replace('/\.\s+\./', '.', $text) ?? $text;
+
+        return trim($text);
+    }
+
+    protected function lowercaseValue(?string $value): string
+    {
+        if (!$value) {
+            return '';
+        }
+
+        return lcfirst($value);
+    }
+
     protected function mapStarsToWeight(int $stars): int
     {
         return (int) ($this->starWeights[$stars] ?? 1);

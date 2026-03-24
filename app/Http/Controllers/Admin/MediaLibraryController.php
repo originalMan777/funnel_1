@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Post;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -15,6 +16,16 @@ class MediaLibraryController extends Controller
     private array $allowedExtensions = [
         'jpg', 'jpeg', 'jpe', 'jfif',
         'png', 'webp', 'gif', 'bmp', 'avif', 'svg',
+    ];
+
+    private array $allowedImageMimeTypes = [
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+        'image/gif',
+        'image/bmp',
+        'image/avif',
+        'image/svg+xml',
     ];
 
     public function index(Request $request)
@@ -42,7 +53,14 @@ class MediaLibraryController extends Controller
     {
         $validated = $request->validate([
             'folder' => ['nullable', 'string', 'max:255'],
-            'image' => ['required', 'file', 'max:8192'],
+            'image' => [
+                'required',
+                'file',
+                'image',
+                'mimetypes:' . implode(',', $this->allowedImageMimeTypes),
+                'extensions:' . implode(',', $this->allowedExtensions),
+                'max:8192',
+            ],
         ]);
 
         $folder = trim((string) ($validated['folder'] ?? 'blog'), '/');
@@ -51,10 +69,25 @@ class MediaLibraryController extends Controller
             $folder = 'blog';
         }
 
+        if (!in_array($folder, $this->allowedFolderValues(), true)) {
+            throw ValidationException::withMessages([
+                'folder' => 'Invalid media folder.',
+            ]);
+        }
+
         $targetDir = $this->folderPath($folder);
 
         if (!File::isDirectory($targetDir)) {
             File::makeDirectory($targetDir, 0755, true);
+        }
+
+        $realImagesRoot = realpath($this->imagesRoot());
+        $realTargetDir = realpath($targetDir);
+
+        if ($realImagesRoot === false || $realTargetDir === false || !Str::startsWith($realTargetDir, $realImagesRoot)) {
+            throw ValidationException::withMessages([
+                'folder' => 'Invalid media folder.',
+            ]);
         }
 
         /** @var \Illuminate\Http\UploadedFile $image */
@@ -171,23 +204,7 @@ class MediaLibraryController extends Controller
 
         $imagesRoot = $this->imagesRoot();
 
-        $folderOptions = collect([
-            [
-                'value' => '__root__',
-                'label' => 'Images Root',
-            ],
-        ]);
-
-        $subfolders = collect(File::directories($imagesRoot))
-            ->map(fn (string $dir) => basename($dir))
-            ->sort()
-            ->values()
-            ->map(fn (string $name) => [
-                'value' => $name,
-                'label' => Str::title(str_replace(['-', '_'], ' ', $name)),
-            ]);
-
-        $folders = $folderOptions->concat($subfolders)->values();
+        $folders = $this->folderOptions();
         $allowedFolderValues = $folders->pluck('value')->all();
 
         if ($folder === '') {
@@ -286,6 +303,41 @@ class MediaLibraryController extends Controller
         }
 
         return $imagesRoot;
+    }
+
+    private function folderOptions()
+    {
+        $imagesRoot = $this->imagesRoot();
+
+        $folderOptions = collect([
+            [
+                'value' => '__root__',
+                'label' => 'Images Root',
+            ],
+            [
+                'value' => 'blog',
+                'label' => 'Blog',
+            ],
+        ]);
+
+        $subfolders = collect(File::directories($imagesRoot))
+            ->map(fn (string $dir) => basename($dir))
+            ->reject(fn (string $name) => $name === 'blog')
+            ->sort()
+            ->values()
+            ->map(fn (string $name) => [
+                'value' => $name,
+                'label' => Str::title(str_replace(['-', '_'], ' ', $name)),
+            ]);
+
+        return $folderOptions->concat($subfolders)->values();
+    }
+
+    private function allowedFolderValues(): array
+    {
+        return $this->folderOptions()
+            ->pluck('value')
+            ->all();
     }
 
     private function folderPath(string $folder): string

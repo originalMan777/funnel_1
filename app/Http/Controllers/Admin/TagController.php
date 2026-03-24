@@ -12,12 +12,12 @@ class TagController extends Controller
 {
     public function index()
     {
-        $categories = Tag::query()
+        $tags = Tag::query()
             ->orderBy('name')
             ->get(['id', 'name', 'slug', 'created_at', 'updated_at']);
 
-        return Inertia::render('Admin/Categories/Index', [
-            'categories' => $categories,
+        return Inertia::render('Admin/Tags/Index', [
+            'tags' => $tags,
         ]);
     }
 
@@ -46,7 +46,7 @@ class TagController extends Controller
             ], 201);
         }
 
-        return redirect()->route('admin.categories.index');
+        return redirect()->route('admin.tags.index');
     }
 
     public function update(Request $request, Tag $tag)
@@ -64,14 +64,14 @@ class TagController extends Controller
             'slug' => $validated['slug'],
         ]);
 
-        return redirect()->route('admin.categories.index');
+        return redirect()->route('admin.tags.index');
     }
 
     public function destroy(Tag $tag)
     {
         $tag->delete();
 
-        return redirect()->route('admin.categories.index');
+        return redirect()->route('admin.tags.index');
     }
 
     private function validateTag(Request $request): array
@@ -97,7 +97,7 @@ class TagController extends Controller
             ->pluck('slug')
             ->all();
 
-        if (!in_array($base, $existing, true)) {
+        if (! in_array($base, $existing, true)) {
             return $base;
         }
 

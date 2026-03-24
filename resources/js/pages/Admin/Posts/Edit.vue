@@ -10,6 +10,7 @@ import PrimaryButton from '@/components/PrimaryButton.vue';
 import SecondaryButton from '@/components/SecondaryButton.vue';
 import TextInput from '@/components/TextInput.vue';
 import MediaLibraryModal from '@/components/admin/MediaLibraryModal.vue';
+import PostMediaTiles from '@/components/admin/PostMediaTiles.vue';
 
 import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
@@ -574,39 +575,48 @@ const unpublish = () => {
                             @change="onFileChange"
                         />
 
-                        <div v-if="featuredImageDisplayUrl" class="mt-3">
-                            <img
-                                :src="featuredImageDisplayUrl"
-                                alt=""
-                                class="h-48 w-full max-w-lg rounded-lg border object-cover"
-                                loading="lazy"
-                                decoding="async"
-                            />
-                            <div class="mt-2 break-all text-xs text-gray-500">
-                                {{ form.featured_image_path || 'New upload selected' }}
+                        <div class="mt-3 grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+                            <div class="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                <div v-if="featuredImageDisplayUrl">
+                                    <img
+                                        :src="featuredImageDisplayUrl"
+                                        alt=""
+                                        class="h-48 w-full rounded-lg border object-cover"
+                                        loading="lazy"
+                                        decoding="async"
+                                    />
+                                    <div class="mt-2 break-all text-xs text-gray-500">
+                                        {{ form.featured_image_path || 'New upload selected' }}
+                                    </div>
+                                </div>
+
+                                <div v-else class="flex h-48 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white text-sm text-gray-600">
+                                    No featured image selected.
+                                </div>
+
+                                <div class="flex flex-col gap-2">
+                                    <SecondaryButton type="button" @click="showMediaLibrary = true">
+                                        Choose From Library
+                                    </SecondaryButton>
+
+                                    <SecondaryButton type="button" @click="openFilePicker">
+                                        Upload New
+                                    </SecondaryButton>
+
+                                    <SecondaryButton
+                                        v-if="featuredImageDisplayUrl"
+                                        type="button"
+                                        @click="removeFeaturedImage"
+                                    >
+                                        Remove Image
+                                    </SecondaryButton>
+                                </div>
                             </div>
-                        </div>
 
-                        <div v-else class="mt-3 text-sm text-gray-600">
-                            No featured image selected.
-                        </div>
-
-                        <div class="mt-3 flex items-center gap-2">
-                            <SecondaryButton type="button" @click="showMediaLibrary = true">
-                                Choose From Library
-                            </SecondaryButton>
-
-                            <SecondaryButton type="button" @click="openFilePicker">
-                                Upload New
-                            </SecondaryButton>
-
-                            <SecondaryButton
-                                v-if="featuredImageDisplayUrl"
-                                type="button"
-                                @click="removeFeaturedImage"
-                            >
-                                Remove Image
-                            </SecondaryButton>
+                            <PostMediaTiles
+                                :selected-path="form.featured_image_path || null"
+                                @select="selectFeaturedImage"
+                            />
                         </div>
 
                         <InputError :message="(form.errors as any).featured_image" class="mt-2" />
@@ -886,6 +896,7 @@ const unpublish = () => {
 
             <MediaLibraryModal
                 v-model:show="showMediaLibrary"
+                :selected-path="form.featured_image_path || null"
                 @select="selectFeaturedImage"
             />
         </div>

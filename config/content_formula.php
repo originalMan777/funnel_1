@@ -14,6 +14,7 @@ return [
     'generator' => [
         'default_result_count' => 50,
         'max_result_count' => 50,
+        'default_action' => 'generate',
 
         /*
         |--------------------------------------------------------------------------
@@ -89,6 +90,47 @@ return [
             'strict_attempts' => 30,
             'max_attempts_per_row' => 80,
         ],
+
+        'word_range' => [
+            'min' => 0,
+            'max' => 2000,
+            'default_min' => 800,
+            'default_max' => 1400,
+        ],
+
+        'prompt_families' => [
+            'standard' => [
+                'label' => 'Standard Prompts',
+                'count' => 2,
+            ],
+            'optimized' => [
+                'label' => 'Optimized Prompts',
+                'count' => 3,
+            ],
+        ],
+    ],
+
+    'tiers' => [
+        'guest' => [
+            'batch_size' => 10,
+            'reset_limit' => 1,
+            'continue_limit' => 0,
+        ],
+        'signed_in' => [
+            'batch_size' => 25,
+            'reset_limit' => 3,
+            'continue_limit' => 1,
+        ],
+        'paid' => [
+            'batch_size' => 50,
+            'reset_limit' => null,
+            'continue_limit' => null,
+        ],
+    ],
+
+    'session' => [
+        'cache_prefix' => 'content_formula_session:',
+        'ttl_minutes' => 240,
     ],
 
     /*
@@ -430,30 +472,34 @@ return [
     */
 
     'prompt_styles' => [
-        [
-            'key' => 'structured',
-            'label' => 'Structured',
-            'template' => 'Write a :vibe :article_format about :topic focused on :article_type.',
+        'standard' => [
+            [
+                'key' => 'structured',
+                'label' => 'Structured',
+                'template' => 'Write a :vibe :article_format about :topic focused on :article_type:audience_clause:context_clause. :impact_sentence:length_instruction:extra_direction_sentence',
+            ],
+            [
+                'key' => 'practical',
+                'label' => 'Practical',
+                'template' => 'Write a practical :article_format on :topic centered on :article_type:audience_clause. Keep the tone :vibe:context_clause. :impact_sentence:length_instruction:extra_direction_sentence',
+            ],
         ],
-        [
-            'key' => 'practical',
-            'label' => 'Practical',
-            'template' => 'Write a practical :article_format on :topic centered around :article_type.',
-        ],
-        [
-            'key' => 'engaging',
-            'label' => 'Engaging',
-            'template' => 'Write an engaging article about :topic from a :article_type perspective in a :vibe style.',
-        ],
-        [
-            'key' => 'insightful',
-            'label' => 'Insightful',
-            'template' => 'Write an insightful :article_format about :topic exploring :article_type.',
-        ],
-        [
-            'key' => 'results',
-            'label' => 'Results-Focused',
-            'template' => 'Write a results-focused :article_format about :topic based on :article_type.',
+        'optimized' => [
+            [
+                'key' => 'authority_outline',
+                'label' => 'Authority Outline',
+                'template' => 'Create a high-conviction article brief about :topic using a :article_format structure and a :vibe tone. Frame it around :article_type:audience_clause:context_clause:perspective_clause. Include a strong introduction, clear section architecture, practical examples, and a conclusion that leaves the reader :reader_impact_lower. :length_instruction:extra_direction_sentence',
+            ],
+            [
+                'key' => 'conversion_ready',
+                'label' => 'Conversion-Ready',
+                'template' => 'Draft an SEO-aware article on :topic from a :article_type angle using a :article_format format. Write for :audience_fallback, keep the tone :vibe, and ground the article in :context_fallback. Prioritize clarity, momentum, strong subheads, and useful takeaways that make the reader feel :reader_impact_lower:perspective_clause. :length_instruction:extra_direction_sentence',
+            ],
+            [
+                'key' => 'editorial_depth',
+                'label' => 'Editorial Depth',
+                'template' => 'Write an editorial-quality piece about :topic that explores :article_type through a :article_format presentation. Use a :vibe voice, surface nuanced insights, address objections, and deliver specific, trustworthy guidance for :audience_fallback. Close with a memorable takeaway that leaves the reader :reader_impact_lower:context_clause:perspective_clause. :length_instruction:extra_direction_sentence',
+            ],
         ],
     ],
 ];

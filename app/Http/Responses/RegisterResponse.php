@@ -11,12 +11,6 @@ class RegisterResponse implements RegisterResponseContract
      */
     public function toResponse($request)
     {
-        $user = $request->user();
-
-        if ($user && $user->is_admin) {
-            return redirect()->intended('/admin');
-        }
-
         return redirect()->intended('/profile');
     }
 }
