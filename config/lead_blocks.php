@@ -11,6 +11,11 @@ return [
         'home' => ['home_intro', 'home_mid', 'home_bottom'],
     ],
 
+    'blog' => [
+        'blog_index_mid_lead',
+    ],
+
+
     'types' => [
         'resource',
         'service',
@@ -40,4 +45,6 @@ return [
             'default',
         ],
     ],
+
+
 ];

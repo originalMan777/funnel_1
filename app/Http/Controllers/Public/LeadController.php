@@ -30,6 +30,7 @@ class LeadController extends Controller
         ]);
 
         $slot = LeadSlot::query()->where('key', $validatedBase['lead_slot_key'])->first();
+
         if (! $slot || ! $slot->is_enabled) {
             throw ValidationException::withMessages([
                 'lead_slot_key' => 'This lead slot is not available.',
@@ -37,6 +38,7 @@ class LeadController extends Controller
         }
 
         $assignment = LeadAssignment::query()->where('lead_slot_id', $slot->id)->first();
+
         if (! $assignment || (int) $assignment->lead_box_id !== (int) $validatedBase['lead_box_id']) {
             throw ValidationException::withMessages([
                 'lead_box_id' => 'This lead box is not assigned to the requested slot.',
@@ -94,5 +96,55 @@ class LeadController extends Controller
             ->back()
             ->withCookie($cookie)
             ->with('success', 'Thanks! We received your info.');
+    }
+
+    public function storeConsultation(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'email', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:80'],
+            'message' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        Lead::create([
+            'lead_box_id' => null,
+            'lead_slot_key' => null,
+            'page_key' => 'consultation_request',
+            'source_url' => $request->fullUrl(),
+            'type' => 'consultation',
+            'first_name' => $validated['name'],
+            'email' => $validated['email'],
+            'payload' => [
+                'phone' => $validated['phone'] ?? null,
+                'message' => $validated['message'] ?? null,
+            ],
+        ]);
+
+        return redirect()->back()->with('success', 'Consultation request submitted.');
+    }
+
+    public function storeContact(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'email', 'max:255'],
+            'message' => ['required', 'string', 'max:2000'],
+        ]);
+
+        Lead::create([
+            'lead_box_id' => null,
+            'lead_slot_key' => null,
+            'page_key' => 'contact',
+            'source_url' => $request->fullUrl(),
+            'type' => 'contact',
+            'first_name' => $validated['name'],
+            'email' => $validated['email'],
+            'payload' => [
+                'message' => $validated['message'],
+            ],
+        ]);
+
+        return redirect()->back()->with('success', 'Message sent.');
     }
 }

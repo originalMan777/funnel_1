@@ -4,13 +4,23 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\LeadBox;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class LeadBoxController extends Controller
 {
-    public function index(): Response
+    private function requireLeadBoxAccess(Request $request): void
     {
+        if (! $request->user()?->canManageLeadBoxes()) {
+            abort(403);
+        }
+    }
+
+    public function index(Request $request): Response
+    {
+        $this->requireLeadBoxAccess($request);
+
         $leadBoxes = LeadBox::query()
             ->latest('updated_at')
             ->get()
@@ -28,8 +38,10 @@ class LeadBoxController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        $this->requireLeadBoxAccess($request);
+
         return Inertia::render('Admin/LeadBoxes/Create', [
             'statuses' => config('lead_blocks.statuses'),
             'icons' => config('lead_blocks.icons'),
@@ -37,8 +49,10 @@ class LeadBoxController extends Controller
         ]);
     }
 
-    public function edit(LeadBox $leadBox): Response
+    public function edit(Request $request, LeadBox $leadBox): Response
     {
+        $this->requireLeadBoxAccess($request);
+
         return Inertia::render('Admin/LeadBoxes/Edit', [
             'leadBox' => [
                 'id' => $leadBox->id,

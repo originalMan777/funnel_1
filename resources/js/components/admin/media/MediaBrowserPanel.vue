@@ -29,14 +29,12 @@ type PaginationLink = {
 type Pagination<T> = {
     data: T[];
     links: PaginationLink[];
-    meta?: {
-        current_page?: number;
-        last_page?: number;
-        from?: number | null;
-        to?: number | null;
-        total?: number;
-        per_page?: number;
-    };
+    current_page?: number;
+    last_page?: number;
+    from?: number | null;
+    to?: number | null;
+    total?: number;
+    per_page?: number;
 };
 
 const props = defineProps<{
@@ -187,13 +185,31 @@ const closePreview = () => {
     previewItem.value = null;
 };
 
-const formattedRange = computed(() => {
-    const meta = props.media.meta;
+const previewIndex = computed(() => {
+    if (!previewItem.value) return -1;
+    return props.media.data.findIndex((item) => item.path === previewItem.value?.path);
+});
 
-    if (meta?.total && meta.total > 0) {
-        const from = meta.from ?? 0;
-        const to = meta.to ?? 0;
-        const total = meta.total;
+const hasPreviousPreview = computed(() => previewIndex.value > 0);
+const hasNextPreview = computed(() => {
+    return previewIndex.value >= 0 && previewIndex.value < props.media.data.length - 1;
+});
+
+const openPreviousPreview = () => {
+    if (!hasPreviousPreview.value) return;
+    previewItem.value = props.media.data[previewIndex.value - 1] ?? null;
+};
+
+const openNextPreview = () => {
+    if (!hasNextPreview.value) return;
+    previewItem.value = props.media.data[previewIndex.value + 1] ?? null;
+};
+
+const formattedRange = computed(() => {
+    if (props.media.total && props.media.total > 0) {
+        const from = props.media.from ?? 0;
+        const to = props.media.to ?? 0;
+        const total = props.media.total;
         return `Showing ${from}-${to} of ${total} images`;
     }
 
@@ -494,7 +510,7 @@ const formatDate = (value: string | null) => {
                     class="w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl"
                 >
                     <div
-                        class="flex items-center justify-between border-b border-gray-200 px-5 py-4"
+                        class="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 px-5 py-4"
                     >
                         <div>
                             <h3 class="text-base font-semibold text-gray-900">
@@ -505,13 +521,33 @@ const formatDate = (value: string | null) => {
                             </p>
                         </div>
 
-                        <button
-                            type="button"
-                            class="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                            @click="closePreview"
-                        >
-                            Close
-                        </button>
+                        <div class="flex items-center gap-2">
+                            <button
+                                type="button"
+                                class="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                :disabled="!hasPreviousPreview"
+                                @click="openPreviousPreview"
+                            >
+                                Previous
+                            </button>
+
+                            <button
+                                type="button"
+                                class="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                :disabled="!hasNextPreview"
+                                @click="openNextPreview"
+                            >
+                                Next
+                            </button>
+
+                            <button
+                                type="button"
+                                class="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                @click="closePreview"
+                            >
+                                Close
+                            </button>
+                        </div>
                     </div>
 
                     <div class="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">

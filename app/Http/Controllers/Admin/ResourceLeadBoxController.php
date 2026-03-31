@@ -12,8 +12,17 @@ use Inertia\Response;
 
 class ResourceLeadBoxController extends Controller
 {
-    public function create(): Response
+    private function requireLeadBoxAccess(Request $request): void
     {
+        if (! $request->user()?->canManageLeadBoxes()) {
+            abort(403);
+        }
+    }
+
+    public function create(Request $request): Response
+    {
+        $this->requireLeadBoxAccess($request);
+
         return Inertia::render('Admin/LeadBoxes/Resource/Edit', [
             'mode' => 'create',
             'leadBox' => null,
@@ -24,6 +33,8 @@ class ResourceLeadBoxController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $this->requireLeadBoxAccess($request);
+
         $validated = $this->validatePayload($request);
 
         $leadBox = LeadBox::create([
@@ -41,12 +52,14 @@ class ResourceLeadBoxController extends Controller
         ]);
 
         return redirect()
-            ->route('admin.lead-boxes.edit', $leadBox)
+            ->route('admin.lead-boxes.resource.edit', $leadBox)
             ->with('success', 'Resource Lead Box created.');
     }
 
-    public function edit(LeadBox $leadBox): Response
+    public function edit(Request $request, LeadBox $leadBox): Response
     {
+        $this->requireLeadBoxAccess($request);
+
         abort_unless($leadBox->type === LeadBox::TYPE_RESOURCE, 404);
 
         return Inertia::render('Admin/LeadBoxes/Resource/Edit', [
@@ -69,6 +82,8 @@ class ResourceLeadBoxController extends Controller
 
     public function update(Request $request, LeadBox $leadBox): RedirectResponse
     {
+        $this->requireLeadBoxAccess($request);
+
         abort_unless($leadBox->type === LeadBox::TYPE_RESOURCE, 404);
 
         $validated = $this->validatePayload($request);

@@ -30,7 +30,6 @@ import admin from '@/routes/admin';
 import { edit as editAppearance } from '@/routes/appearance';
 import { edit as editProfile } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
-import { send } from '@/routes/verification';
 
 type Props = {
     mustVerifyEmail: boolean;

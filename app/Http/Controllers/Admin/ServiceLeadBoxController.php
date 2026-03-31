@@ -12,8 +12,17 @@ use Inertia\Response;
 
 class ServiceLeadBoxController extends Controller
 {
-    public function create(): Response
+    private function requireLeadBoxAccess(Request $request): void
     {
+        if (! $request->user()?->canManageLeadBoxes()) {
+            abort(403);
+        }
+    }
+
+    public function create(Request $request): Response
+    {
+        $this->requireLeadBoxAccess($request);
+
         return Inertia::render('Admin/LeadBoxes/Service/Edit', [
             'mode' => 'create',
             'leadBox' => null,
@@ -24,6 +33,8 @@ class ServiceLeadBoxController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $this->requireLeadBoxAccess($request);
+
         $validated = $this->validatePayload($request);
 
         $leadBox = LeadBox::create([
@@ -43,12 +54,14 @@ class ServiceLeadBoxController extends Controller
         ]);
 
         return redirect()
-            ->route('admin.lead-boxes.edit', $leadBox)
+            ->route('admin.lead-boxes.service.edit', $leadBox)
             ->with('success', 'Service Lead Box created.');
     }
 
-    public function edit(LeadBox $leadBox): Response
+    public function edit(Request $request, LeadBox $leadBox): Response
     {
+        $this->requireLeadBoxAccess($request);
+
         abort_unless($leadBox->type === LeadBox::TYPE_SERVICE, 404);
 
         $content = $leadBox->content ?? [];
@@ -78,6 +91,8 @@ class ServiceLeadBoxController extends Controller
 
     public function update(Request $request, LeadBox $leadBox): RedirectResponse
     {
+        $this->requireLeadBoxAccess($request);
+
         abort_unless($leadBox->type === LeadBox::TYPE_SERVICE, 404);
 
         $validated = $this->validatePayload($request);
@@ -100,18 +115,6 @@ class ServiceLeadBoxController extends Controller
             ->with('success', 'Service Lead Box updated.');
     }
 
-    /**
-     * @return array{
-     *   status:string,
-     *   internal_name:string,
-     *   title:string,
-     *   short_text:?string,
-     *   button_text:?string,
-     *   cta_line:string,
-     *   reassurance_text:?string,
-     *   value_points:array<int,array{icon_key:string,line:string}>
-     * }
-     */
     private function validatePayload(Request $request): array
     {
         return $request->validate([

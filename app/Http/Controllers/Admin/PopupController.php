@@ -12,8 +12,17 @@ use Inertia\Response;
 
 class PopupController extends Controller
 {
-    public function index(): Response
+    private function requirePopupAccess(Request $request): void
     {
+        if (! $request->user()?->canManagePopups()) {
+            abort(403);
+        }
+    }
+
+    public function index(Request $request): Response
+    {
+        $this->requirePopupAccess($request);
+
         $popups = Popup::query()
             ->orderBy('priority')
             ->latest('updated_at')
@@ -42,13 +51,17 @@ class PopupController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        $this->requirePopupAccess($request);
+
         return Inertia::render('Admin/popups/Create');
     }
 
     public function store(Request $request): RedirectResponse
     {
+        $this->requirePopupAccess($request);
+
         $validated = $this->preparePayload($request, $this->validatePopup($request));
 
         Popup::create($validated);
@@ -58,8 +71,10 @@ class PopupController extends Controller
             ->with('success', 'Popup created successfully.');
     }
 
-    public function edit(Popup $popup): Response
+    public function edit(Request $request, Popup $popup): Response
     {
+        $this->requirePopupAccess($request);
+
         return Inertia::render('Admin/popups/Edit', [
             'popup' => [
                 'id' => $popup->id,
@@ -94,6 +109,8 @@ class PopupController extends Controller
 
     public function update(Request $request, Popup $popup): RedirectResponse
     {
+        $this->requirePopupAccess($request);
+
         $validated = $this->preparePayload($request, $this->validatePopup($request, $popup->id));
 
         $popup->update($validated);
@@ -103,8 +120,10 @@ class PopupController extends Controller
             ->with('success', 'Popup updated successfully.');
     }
 
-    public function destroy(Popup $popup): RedirectResponse
+    public function destroy(Request $request, Popup $popup): RedirectResponse
     {
+        $this->requirePopupAccess($request);
+
         $popup->delete();
 
         return redirect()
@@ -154,7 +173,7 @@ class PopupController extends Controller
 
     private function preparePayload(Request $request, array $validated): array
     {
-        $validated['slug'] = Str::slug($validated['slug'] ?: $validated['name']);
+        $validated['slug'] = Str::slug(($validated['slug'] ?? '') !== '' ? $validated['slug'] : $validated['name']);
         $validated['target_pages'] = array_values($validated['target_pages'] ?? []);
         $validated['form_fields'] = array_values($validated['form_fields'] ?? []);
         $validated['is_active'] = $request->boolean('is_active');

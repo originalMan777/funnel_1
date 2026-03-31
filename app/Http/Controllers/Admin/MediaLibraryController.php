@@ -4,32 +4,46 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Post;
+use App\Services\Media\SecureImageUploadService;
+use App\Services\Security\SecurityAuditLogger;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class MediaLibraryController extends Controller
 {
+    public function __construct(
+        private readonly SecurityAuditLogger $securityAuditLogger,
+        private readonly SecureImageUploadService $secureImageUploadService,
+    ) {
+    }
+
+    private function requireMediaAccess(Request $request): void
+    {
+        if (! $request->user()?->canManageMedia()) {
+            abort(403);
+        }
+    }
+
     private array $allowedExtensions = [
         'jpg', 'jpeg', 'jpe', 'jfif',
-        'png', 'webp', 'gif', 'bmp', 'avif', 'svg',
+        'png', 'webp',
     ];
 
     private array $allowedImageMimeTypes = [
         'image/jpeg',
         'image/png',
         'image/webp',
-        'image/gif',
-        'image/bmp',
-        'image/avif',
-        'image/svg+xml',
     ];
 
     public function index(Request $request)
     {
+        $this->requireMediaAccess($request);
+
         $payload = $this->buildIndexPayload($request);
 
         return Inertia::render('Media/Index', $payload);
@@ -37,6 +51,8 @@ class MediaLibraryController extends Controller
 
     public function browser(Request $request)
     {
+        $this->requireMediaAccess($request);
+
         $payload = $this->buildIndexPayload($request);
 
         return Inertia::render('Media/Browser', $payload);
@@ -44,6 +60,8 @@ class MediaLibraryController extends Controller
 
     public function feed(Request $request)
     {
+        $this->requireMediaAccess($request);
+
         $payload = $this->buildIndexPayload($request);
 
         return response()->json($payload);
@@ -51,6 +69,8 @@ class MediaLibraryController extends Controller
 
     public function store(Request $request)
     {
+        $this->requireMediaAccess($request);
+
         $validated = $request->validate([
             'folder' => ['nullable', 'string', 'max:255'],
             'image' => [
@@ -90,36 +110,34 @@ class MediaLibraryController extends Controller
             ]);
         }
 
-        /** @var \Illuminate\Http\UploadedFile $image */
+        /** @var UploadedFile $image */
         $image = $validated['image'];
 
-        $originalBase = pathinfo($image->getClientOriginalName(), PATHINFO_FILENAME);
-        $base = Str::slug($originalBase);
+        $this->assertSafeUploadedImage($image);
 
-        if ($base === '') {
-            $base = 'image';
-        }
+        $generatedBase = 'image-' . Str::lower(Str::random(12));
 
-        $extension = strtolower($image->getClientOriginalExtension() ?: $image->guessExtension() ?: 'png');
+        $publicPath = $this->secureImageUploadService->storeForMediaLibrary(
+            $image,
+            $folder,
+            $generatedBase
+        );
 
-        if (!in_array($extension, $this->allowedExtensions, true)) {
-            $extension = 'png';
-        }
+        $absolutePath = public_path(ltrim($publicPath, '/'));
+        $filename = basename($absolutePath);
 
-        $filename = $base . '.' . $extension;
-        $counter = 2;
-
-        while (File::exists($targetDir . DIRECTORY_SEPARATOR . $filename)) {
-            $filename = $base . '-' . $counter . '.' . $extension;
-            $counter++;
-        }
-
-        $image->move($targetDir, $filename);
-
-        $absolutePath = $targetDir . DIRECTORY_SEPARATOR . $filename;
-        $publicPath = $folder === '__root__'
-            ? '/images/' . $filename
-            : '/images/' . $folder . '/' . $filename;
+        $this->securityAuditLogger->log(
+            event: 'media_uploaded',
+            request: $request,
+            userId: (int) optional($request->user())->id,
+            entityType: 'media',
+            entityId: null,
+            context: [
+                'folder' => $folder,
+                'path' => $publicPath,
+                'size_bytes' => @filesize($absolutePath) ?: null,
+            ]
+        );
 
         return response()->json([
             'message' => 'Image uploaded.',
@@ -129,7 +147,7 @@ class MediaLibraryController extends Controller
                 'folder' => $folder,
                 'path' => $publicPath,
                 'url' => $publicPath,
-                'size_kb' => round(filesize($absolutePath) / 1024, 1),
+                'size_kb' => round((@filesize($absolutePath) ?: 0) / 1024, 1),
                 'modified_at' => date('c', filemtime($absolutePath)),
                 'extension' => strtolower(pathinfo($filename, PATHINFO_EXTENSION)),
             ],
@@ -138,6 +156,8 @@ class MediaLibraryController extends Controller
 
     public function destroy(Request $request)
     {
+        $this->requireMediaAccess($request);
+
         $validated = $request->validate([
             'path' => ['required', 'string', 'max:2048'],
         ]);
@@ -176,9 +196,13 @@ class MediaLibraryController extends Controller
             ], 404);
         }
 
+        $pathVariants = $this->pathVariantsForLookup($publicPath);
+
         $inUse = Post::query()
-            ->where('featured_image_path', $publicPath)
-            ->orWhere('og_image_path', $publicPath)
+            ->where(function ($query) use ($pathVariants) {
+                $query->whereIn('featured_image_path', $pathVariants)
+                    ->orWhereIn('og_image_path', $pathVariants);
+            })
             ->exists();
 
         if ($inUse) {
@@ -188,6 +212,17 @@ class MediaLibraryController extends Controller
         }
 
         File::delete($absolutePath);
+
+        $this->securityAuditLogger->log(
+            event: 'media_deleted',
+            request: $request,
+            userId: (int) optional($request->user())->id,
+            entityType: 'media',
+            entityId: null,
+            context: [
+                'path' => $publicPath,
+            ]
+        );
 
         return response()->json([
             'message' => 'Image deleted.',
@@ -200,7 +235,7 @@ class MediaLibraryController extends Controller
         $search = trim((string) $request->query('search', ''));
         $perPage = max(1, min((int) $request->query('per_page', 24), 100));
         $page = max(1, (int) $request->query('page', 1));
-        $debug = $request->boolean('debug');
+        $debug = app()->isLocal() && $request->boolean('debug');
 
         $imagesRoot = $this->imagesRoot();
 
@@ -349,5 +384,43 @@ class MediaLibraryController extends Controller
         }
 
         return $imagesRoot . DIRECTORY_SEPARATOR . $folder;
+    }
+
+    private function assertSafeUploadedImage(UploadedFile $image): void
+    {
+        $realPath = $image->getRealPath();
+
+        if ($realPath === false) {
+            throw ValidationException::withMessages([
+                'image' => 'Invalid uploaded image.',
+            ]);
+        }
+
+        $imageInfo = @getimagesize($realPath);
+
+        if ($imageInfo === false || !isset($imageInfo['mime'])) {
+            throw ValidationException::withMessages([
+                'image' => 'Uploaded file is not a valid image.',
+            ]);
+        }
+
+        if (!in_array((string) $imageInfo['mime'], $this->allowedImageMimeTypes, true)) {
+            throw ValidationException::withMessages([
+                'image' => 'Unsupported image type.',
+            ]);
+        }
+    }
+
+    private function pathVariantsForLookup(string $publicPath): array
+    {
+        $normalized = Post::normalizeManagedImagePath($publicPath) ?? $publicPath;
+        $relative = ltrim(Str::after($normalized, '/images/'), '/');
+
+        return array_values(array_unique([
+            $normalized,
+            ltrim($normalized, '/'),
+            '/storage/images/' . $relative,
+            'storage/images/' . $relative,
+        ]));
     }
 }

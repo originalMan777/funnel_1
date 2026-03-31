@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3'
+import { Head, Link, usePage } from '@inertiajs/vue3'
 import FrontLayout from '@/layouts/FrontLayout.vue'
 
 type CategoryDto = {
@@ -34,6 +34,7 @@ type PostSeoDto = {
 }
 
 type PostDto = {
+  id: number;
   title: string;
   slug: string;
   excerpt: string | null;
@@ -49,6 +50,24 @@ type PostDto = {
 const { post } = defineProps<{
   post: PostDto;
 }>()
+
+const page = usePage()
+
+const authUser = page.props.auth?.user as
+  | {
+      is_admin?: boolean;
+      role?: string | null;
+    }
+  | null
+  | undefined
+
+const canManagePosts = (() => {
+  if (!authUser) return false
+  if (authUser.is_admin) return true
+
+  return ['super_admin', 'admin', 'editor'].includes(String(authUser.role ?? ''))
+})()
+
 
 const formatDate = (value: string | null) => {
   if (!value) return ''
@@ -168,6 +187,15 @@ const formatDate = (value: string | null) => {
               </Link>
             </template>
           </div>
+
+          <div v-if="canManagePosts" class="mt-6">
+            <Link
+                :href="route('admin.posts.edit', post.id)"
+                class="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
+            >
+                Edit Article
+            </Link>
+            </div>
         </section>
 
         <section

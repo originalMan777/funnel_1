@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import axios from 'axios';
 import AdminLayout from '@/AppLayouts/AdminLayout.vue';
@@ -65,6 +65,51 @@ const form = useForm({
 
 const displayTitle = computed(() => form.title?.trim() || 'New Post');
 
+const hasMounted = ref(false);
+const initialSnapshot = ref('');
+
+const normalizeRichText = (html: string) => {
+    return html
+        .replace(/&nbsp;/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/<p><br><\/p>/g, '')
+        .trim();
+};
+
+const snapshotForm = () => JSON.stringify({
+    title: form.title.trim(),
+    slug: form.slug.trim(),
+    excerpt: form.excerpt.trim(),
+    content: normalizeRichText(form.content || ''),
+    sources: form.sources.trim(),
+    category_id: form.category_id,
+    tag_ids: [...form.tag_ids].sort((a, b) => a - b),
+    new_category: form.new_category.trim(),
+    new_tags: [...form.new_tags],
+    meta_title: form.meta_title.trim(),
+    meta_description: form.meta_description.trim(),
+    canonical_url: form.canonical_url.trim(),
+    og_title: form.og_title.trim(),
+    og_description: form.og_description.trim(),
+    og_image_path: form.og_image_path.trim(),
+    noindex: form.noindex,
+    is_featured: form.is_featured,
+    featured_image_path: form.featured_image_path.trim(),
+    remove_featured_image: form.remove_featured_image,
+    has_featured_image_file: Boolean(form.featured_image),
+});
+
+const captureBaselineState = () => {
+    initialSnapshot.value = snapshotForm();
+};
+
+const hasUnsavedChanges = computed(() => {
+    if (!hasMounted.value) return false;
+
+    return snapshotForm() !== initialSnapshot.value;
+});
+
+
 const quillEditorRef = ref<Quill | null>(null);
 const editorContainerRef = ref<HTMLDivElement | null>(null);
 
@@ -73,6 +118,18 @@ const featuredImagePreviewUrl = ref<string | null>(null);
 
 const featuredImageDisplayUrl = computed(() => {
     return featuredImagePreviewUrl.value || form.featured_image_path || null;
+});
+
+const featuredImageStatusText = computed(() => {
+    if (form.featured_image_path) {
+        return form.featured_image_path;
+    }
+
+    if (form.featured_image) {
+        return 'Local file selected. It will be saved to the media library when you save this post.';
+    }
+
+    return '';
 });
 
 const selectedTags = computed(() =>
@@ -319,7 +376,7 @@ const createCategoryNow = async () => {
 };
 
 const beforeUnloadHandler = (e: BeforeUnloadEvent) => {
-    if (!form.isDirty) return;
+    if (!hasUnsavedChanges.value) return;
     e.preventDefault();
     e.returnValue = '';
 };
@@ -327,26 +384,33 @@ const beforeUnloadHandler = (e: BeforeUnloadEvent) => {
 onMounted(() => {
     window.addEventListener('beforeunload', beforeUnloadHandler);
 
-    if (editorContainerRef.value) {
-        quillEditorRef.value = new Quill(editorContainerRef.value, {
-            theme: 'snow',
-            modules: {
-                toolbar: [
-                    ['bold', 'italic', 'underline', 'strike'],
-                    ['link', 'image'],
-                    [{ list: 'ordered' }, { list: 'bullet' }],
-                    [{ header: [1, 2, 3, false] }],
-                    ['clean'],
-                ],
-            },
-        });
+    if (!editorContainerRef.value) return;
 
-        quillEditorRef.value.root.innerHTML = form.content;
+    quillEditorRef.value = new Quill(editorContainerRef.value, {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                ['bold', 'italic', 'underline', 'strike'],
+                ['link', 'image'],
+                [{ list: 'ordered' }, { list: 'bullet' }],
+                [{ header: [1, 2, 3, false] }],
+                ['clean'],
+            ],
+        },
+    });
 
-        quillEditorRef.value.on('text-change', () => {
+    quillEditorRef.value.root.innerHTML = form.content;
+
+    nextTick(() => {
+        form.content = quillEditorRef.value?.root.innerHTML || '';
+
+        quillEditorRef.value?.on('text-change', () => {
             form.content = quillEditorRef.value?.root.innerHTML || '';
         });
-    }
+
+        captureBaselineState();
+        hasMounted.value = true;
+    });
 });
 
 onBeforeUnmount(() => {
@@ -360,7 +424,7 @@ onBeforeUnmount(() => {
 });
 
 const backToPosts = () => {
-    if (form.isDirty && !confirm('You have unsaved changes. Are you sure you want to leave?')) {
+    if (hasUnsavedChanges.value && !confirm('You have unsaved changes. Are you sure you want to leave?')) {
         return;
     }
 
@@ -493,7 +557,7 @@ const save = () => {
                                         decoding="async"
                                     />
                                     <div class="mt-2 break-all text-xs text-gray-500">
-                                        {{ form.featured_image_path || 'New upload selected' }}
+                                        {{ featuredImageStatusText }}
                                     </div>
                                 </div>
 
@@ -507,7 +571,7 @@ const save = () => {
                                     </SecondaryButton>
 
                                     <SecondaryButton type="button" @click="openFilePicker">
-                                        Upload New
+                                        Choose Local File
                                     </SecondaryButton>
 
                                     <SecondaryButton
@@ -517,6 +581,10 @@ const save = () => {
                                     >
                                         Remove Image
                                     </SecondaryButton>
+                                </div>
+
+                                <div class="text-xs text-gray-500">
+                                    Local files are only saved after you save this post. Use "Choose From Library" for already-saved media.
                                 </div>
                             </div>
 

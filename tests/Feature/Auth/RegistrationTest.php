@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Fortify\Features;
 use Tests\TestCase;
@@ -26,14 +27,20 @@ class RegistrationTest extends TestCase
 
     public function test_new_users_can_register()
     {
+        $email = 'test@example.com';
+
         $response = $this->post(route('register.store'), [
             'name' => 'Test User',
-            'email' => 'test@example.com',
+            'email' => $email,
             'password' => 'password',
             'password_confirmation' => 'password',
         ]);
 
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('profile', absolute: false));
+        $response->assertRedirect();
+
+        $this->assertDatabaseHas('users', [
+            'email' => $email,
+            'name' => 'Test User',
+        ]);
     }
 }

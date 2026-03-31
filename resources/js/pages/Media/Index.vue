@@ -28,14 +28,12 @@ type PaginationLink = {
 type Pagination<T> = {
   data: T[]
   links: PaginationLink[]
-  meta?: {
-    current_page?: number
-    last_page?: number
-    from?: number | null
-    to?: number | null
-    total?: number
-    per_page?: number
-  }
+  current_page?: number
+  last_page?: number
+  from?: number | null
+  to?: number | null
+  total?: number
+  per_page?: number
 }
 
 defineProps<{

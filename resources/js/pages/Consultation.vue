@@ -25,13 +25,12 @@ import FrontLayout from '@/layouts/FrontLayout.vue'
             </p>
 
             <div class="flex flex-wrap gap-4">
-              <button
-                type="button"
-                data-popup-trigger="current-page"
+              <Link
+                :href="route('consultation.request')"
                 class="rounded-lg bg-gray-900 px-6 py-3 text-sm font-medium text-white hover:bg-gray-800"
               >
                 Request Consultation
-              </button>
+              </Link>
 
               <Link
                 href="/contact"
@@ -112,23 +111,33 @@ import FrontLayout from '@/layouts/FrontLayout.vue'
         <div class="mx-auto max-w-6xl px-6">
           <div class="grid gap-10 md:grid-cols-[1fr_1fr] md:items-start">
             <div class="space-y-5">
-              <p class="text-sm font-semibold uppercase tracking-[0.18em] text-gray-500">
-                What You Get
-              </p>
+              <div class="rounded-2xl bg-white px-5 py-4 ring-1 ring-black/5">
+                <p class="font-medium text-gray-900">Share your situation through the guided intake form.</p>
+                <p class="mt-1 text-sm leading-relaxed text-gray-600">
+                  The consultation request is collected through our intake popup so the details stay aligned
+                  with the active lead-capture setup.
+                </p>
+              </div>
 
-              <h2 class="text-3xl font-semibold tracking-tight text-gray-900 md:text-4xl">
-                Practical guidance tailored to your situation
-              </h2>
+              <div class="rounded-2xl bg-white px-5 py-4 ring-1 ring-black/5">
+                <p class="font-medium text-gray-900">Typical topics include:</p>
+                <ul class="mt-3 space-y-2 text-sm leading-relaxed text-gray-600">
+                  <li>Buying strategy and next steps</li>
+                  <li>Selling preparation and positioning</li>
+                  <li>Relocation questions</li>
+                  <li>General clarity before making a move</li>
+                </ul>
+              </div>
 
-              <p class="leading-relaxed text-gray-600">
-                The goal of the consultation is to help you better understand
-                where you stand, what your options are, and what next steps make
-                the most sense based on your situation.
-              </p>
+              <Link
+                :href="route('consultation.request')"
+                class="inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-6 py-3.5 font-medium text-white transition hover:bg-gray-800"
+              >
+                Request Consultation
+              </Link>
 
-              <p class="leading-relaxed text-gray-600">
-                This is not about pressure. It is about helping you make more
-                informed decisions with clearer thinking and stronger direction.
+              <p class="text-sm leading-relaxed text-gray-500">
+                A guided intake popup will open so you can submit your information.
               </p>
             </div>
 
@@ -322,12 +331,12 @@ import FrontLayout from '@/layouts/FrontLayout.vue'
               </p>
 
               <div class="pt-2">
-                <a
-                  href="#"
+                <Link
+                  :href="route('consultation.request')"
                   class="inline-flex rounded-md bg-white px-6 py-3 font-medium text-gray-900 transition hover:bg-white/90"
                 >
                   Get Started
-                </a>
+                </Link>
               </div>
             </div>
           </div>

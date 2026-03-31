@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\ContentFormula;
 
+use App\Services\ContentFormula\ContentFormulaEventLogger;
 use App\Services\ContentFormula\ContentFormulaRules;
 use App\Services\ContentFormula\ContentFormulaSessionService;
 use Illuminate\Foundation\Http\FormRequest;
@@ -86,20 +87,82 @@ class GenerateContentFormulaRequest extends FormRequest
     {
         $validator->after(function (Validator $validator) {
             $contentFormulaRules = app(ContentFormulaRules::class);
+            $events = app(ContentFormulaEventLogger::class);
             $groups = $this->input('groups', []);
             $requiredGroups = (array) config('content_formula.generator.required_groups', []);
             $action = $this->action();
             $sessionId = trim((string) $this->input('session_id', ''));
+            $thresholdRequired = $contentFormulaRules->minimumUnlockCombinations();
+            $loggedEvents = [];
+            $loggedFailureEvents = [];
 
             $minWords = $this->input('min_words', config('content_formula.generator.word_range.default_min', 800));
             $maxWords = $this->input('max_words', config('content_formula.generator.word_range.default_max', 1400));
 
+            $logWarning = function (string $event, array $context = []) use ($events, &$loggedEvents, $action, $sessionId, $groups, $minWords, $maxWords): void {
+                if (in_array($event, $loggedEvents, true)) {
+                    return;
+                }
+
+                $loggedEvents[] = $event;
+
+                $events->warning($event, $this, array_merge([
+                    'action_type' => $action,
+                    'session_id' => $sessionId !== '' ? $sessionId : null,
+                    'requested_result_count' => $this->filled('result_count') ? (int) $this->input('result_count') : null,
+                    'word_min' => is_numeric((string) $minWords) ? (int) $minWords : null,
+                    'word_max' => is_numeric((string) $maxWords) ? (int) $maxWords : null,
+                    'selected_group_counts' => $events->selectedGroupCounts($groups),
+                ], $context));
+            };
+
+            $logError = function (string $event, array $context = []) use ($events, &$loggedFailureEvents, $action, $sessionId, $groups, $minWords, $maxWords): void {
+                if (in_array($event, $loggedFailureEvents, true)) {
+                    return;
+                }
+
+                $loggedFailureEvents[] = $event;
+
+                $events->error($event, $this, array_merge([
+                    'action_type' => $action,
+                    'session_id' => $sessionId !== '' ? $sessionId : null,
+                    'requested_result_count' => $this->filled('result_count') ? (int) $this->input('result_count') : null,
+                    'word_min' => is_numeric((string) $minWords) ? (int) $minWords : null,
+                    'word_max' => is_numeric((string) $maxWords) ? (int) $maxWords : null,
+                    'selected_group_counts' => $events->selectedGroupCounts($groups),
+                    'generator_stage' => 'validate',
+                    'exception_class' => null,
+                    'safe_exception_message' => null,
+                ], $context));
+            };
+
+            if (!is_array($groups)) {
+                $logWarning('generator_rejected_malformed_payload', [
+                    'validation_field' => 'groups',
+                    'rejection_reason' => 'groups_must_be_array',
+                ]);
+                $logError('generator_failure_unexpected_payload_shape', [
+                    'validation_field' => 'groups',
+                    'rejection_reason' => 'groups_must_be_array',
+                ]);
+
+                return;
+            }
+
             if ((int) $minWords > (int) $maxWords) {
                 $validator->errors()->add('min_words', 'Minimum words cannot be greater than maximum words.');
+                $logWarning('generator_rejected_invalid_word_range', [
+                    'validation_field' => 'min_words',
+                    'rejection_reason' => 'min_words_greater_than_max_words',
+                ]);
             }
 
             if (in_array($action, ['continue', 'reset'], true) && $sessionId === '') {
                 $validator->errors()->add('session_id', 'A valid generation session is required for this action.');
+                $logWarning('generator_rejected_missing_session', [
+                    'validation_field' => 'session_id',
+                    'rejection_reason' => 'missing_session_id',
+                ]);
             }
 
             if ($sessionId !== '' && in_array($action, ['continue', 'reset'], true)) {
@@ -107,6 +170,10 @@ class GenerateContentFormulaRequest extends FormRequest
 
                 if (!$sessions->exists($sessionId)) {
                     $validator->errors()->add('session_id', 'The selected generation session is no longer available. Start a fresh generation.');
+                    $logWarning('generator_rejected_stale_session', [
+                        'validation_field' => 'session_id',
+                        'rejection_reason' => 'stale_session_id',
+                    ]);
                 }
             }
 
@@ -115,10 +182,29 @@ class GenerateContentFormulaRequest extends FormRequest
 
                 if (!is_array($items) || count($items) < 1) {
                     $validator->errors()->add("groups.{$groupKey}", "Please select at least one option for {$groupKey}.");
+                    $logWarning('generator_rejected_missing_required_selection', [
+                        'validation_field' => "groups.{$groupKey}",
+                        'rejection_reason' => 'missing_required_selection',
+                    ]);
+
+                    if (!is_array($items)) {
+                        $logError('generator_failure_unexpected_payload_shape', [
+                            'validation_field' => "groups.{$groupKey}",
+                            'rejection_reason' => 'required_group_must_be_array',
+                        ]);
+                    }
+
                     continue;
                 }
 
                 foreach ($items as $index => $item) {
+                    if (!is_array($item)) {
+                        $logWarning('generator_rejected_malformed_payload', [
+                            'validation_field' => "groups.{$groupKey}.{$index}",
+                            'rejection_reason' => 'group_item_must_be_object',
+                        ]);
+                    }
+
                     $this->validateGroupItem($validator, $groupKey, $index, $item, true);
                 }
             }
@@ -127,27 +213,74 @@ class GenerateContentFormulaRequest extends FormRequest
                 $items = $groups[$optionalGroup] ?? [];
 
                 if (!is_array($items)) {
+                    if ($items !== null) {
+                        $logWarning('generator_rejected_malformed_payload', [
+                            'validation_field' => "groups.{$optionalGroup}",
+                            'rejection_reason' => 'optional_group_must_be_array',
+                        ]);
+                        $logError('generator_failure_unexpected_payload_shape', [
+                            'validation_field' => "groups.{$optionalGroup}",
+                            'rejection_reason' => 'optional_group_must_be_array',
+                        ]);
+                    }
+
                     continue;
                 }
 
                 foreach ($items as $index => $item) {
+                    if (!is_array($item)) {
+                        $logWarning('generator_rejected_malformed_payload', [
+                            'validation_field' => "groups.{$optionalGroup}.{$index}",
+                            'rejection_reason' => 'group_item_must_be_object',
+                        ]);
+                    }
+
                     $this->validateGroupItem($validator, $optionalGroup, $index, $item, false);
                 }
             }
 
             $knownGroupKeys = $contentFormulaRules->trackedCombinationGroups();
+            $combinationGroups = collect($knownGroupKeys)
+                ->mapWithKeys(fn (string $groupKey) => [$groupKey => $this->groupItems($groups, $groupKey)])
+                ->all();
 
             $activeGroupCount = collect($knownGroupKeys)
-                ->filter(fn (string $groupKey) => count($groups[$groupKey] ?? []) > 0)
+                ->filter(fn (string $groupKey) => count($combinationGroups[$groupKey]) > 0)
                 ->count();
 
             if ($activeGroupCount > $contentFormulaRules->maxActiveGroups()) {
                 $validator->errors()->add('groups', 'You can use up to 10 categories at a time.');
+                $logWarning('generator_rejected_selection_limit', [
+                    'validation_field' => 'groups',
+                    'rejection_reason' => 'active_group_limit_exceeded',
+                ]);
             }
 
+            $combinationCount = $contentFormulaRules->combinationCount($combinationGroups, $knownGroupKeys);
+
             if (in_array($action, ['generate', 'reset'], true)
-                && !$contentFormulaRules->meetsUnlockThreshold($groups, $knownGroupKeys)) {
+                && !$contentFormulaRules->meetsUnlockThreshold($combinationGroups, $knownGroupKeys)) {
                 $validator->errors()->add('groups', 'Select fields. Reach 1,000 combinations to proceed.');
+                $logWarning('generator_rejected_threshold_not_met', [
+                    'validation_field' => 'groups',
+                    'rejection_reason' => 'minimum_combination_threshold_not_met',
+                    'combination_count' => $combinationCount,
+                    'threshold_required' => $thresholdRequired,
+                ]);
+            }
+
+            if ($validator->errors()->has('result_count')) {
+                $logWarning('generator_rejected_invalid_result_count', [
+                    'validation_field' => 'result_count',
+                    'rejection_reason' => 'result_count_not_allowed',
+                ]);
+            }
+
+            if ($validator->errors()->has('min_words') || $validator->errors()->has('max_words')) {
+                $logWarning('generator_rejected_invalid_word_range', [
+                    'validation_field' => $validator->errors()->has('min_words') ? 'min_words' : 'max_words',
+                    'rejection_reason' => 'word_range_invalid',
+                ]);
             }
         });
     }
@@ -252,5 +385,12 @@ class GenerateContentFormulaRequest extends FormRequest
         if ($stars < 1 || $stars > 3) {
             $validator->errors()->add("groups.{$groupKey}.{$index}.stars", 'Star values must be between 1 and 3.');
         }
+    }
+
+    protected function groupItems(array $groups, string $groupKey): array
+    {
+        $items = $groups[$groupKey] ?? [];
+
+        return is_array($items) ? $items : [];
     }
 }

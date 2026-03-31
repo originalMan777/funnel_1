@@ -74,6 +74,33 @@ class PostLifecycleTest extends TestCase
         $this->assertDatabaseMissing('posts', ['id' => $post->id]);
     }
 
+    public function test_admin_can_archive_a_post_and_it_leaves_the_active_admin_index(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $post = Post::factory()->published()->create([
+            'title' => 'Archive Me',
+            'slug' => 'archive-me',
+        ]);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.posts.archive', $post))
+            ->assertSessionHas('success');
+
+        $post->refresh();
+
+        $this->assertNotNull($post->archived_at);
+
+        $this->actingAs($admin)
+            ->get(route('admin.posts.index'))
+            ->assertOk()
+            ->assertDontSee('Archive Me');
+
+        $this->actingAs($admin)
+            ->get(route('admin.posts.archived'))
+            ->assertOk()
+            ->assertSee('Archive Me');
+    }
+
     public function test_post_store_rejects_invalid_featured_image_paths(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
@@ -89,5 +116,26 @@ class PostLifecycleTest extends TestCase
             ])
             ->assertRedirect(route('admin.posts.create'))
             ->assertSessionHasErrors('featured_image_path');
+    }
+
+    public function test_post_store_normalizes_supported_media_path_shapes(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $category = Category::factory()->create();
+
+        $this->actingAs($admin)
+            ->post(route('admin.posts.store'), [
+                'title' => 'Normalized media paths',
+                'content' => '<p>Body</p>',
+                'category_id' => $category->id,
+                'featured_image_path' => 'storage/images/blog/cover.png',
+                'og_image_path' => '/storage/images/blog/share.png',
+            ])
+            ->assertRedirect();
+
+        $post = Post::query()->where('title', 'Normalized media paths')->firstOrFail();
+
+        $this->assertSame('/images/blog/cover.png', $post->featured_image_path);
+        $this->assertSame('/images/blog/share.png', $post->og_image_path);
     }
 }

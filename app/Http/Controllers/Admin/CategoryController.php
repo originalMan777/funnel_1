@@ -10,8 +10,17 @@ use Inertia\Inertia;
 
 class CategoryController extends Controller
 {
-    public function index()
+    private function requireTaxonomyAccess(Request $request): void
     {
+        if (! $request->user()?->canManageTaxonomy()) {
+            abort(403);
+        }
+    }
+
+    public function index(Request $request)
+    {
+        $this->requireTaxonomyAccess($request);
+
         $categories = Category::query()
             ->orderBy('name')
             ->get(['id', 'name', 'slug', 'created_at', 'updated_at']);
@@ -23,6 +32,8 @@ class CategoryController extends Controller
 
     public function store(Request $request)
     {
+        $this->requireTaxonomyAccess($request);
+
         $validated = $this->validateCategory($request);
 
         $baseSlug = ($validated['slug'] ?? '') !== ''
@@ -51,6 +62,8 @@ class CategoryController extends Controller
 
     public function update(Request $request, Category $category)
     {
+        $this->requireTaxonomyAccess($request);
+
         $validated = $this->validateCategory($request);
 
         $baseSlug = ($validated['slug'] ?? '') !== ''
@@ -67,8 +80,10 @@ class CategoryController extends Controller
         return redirect()->route('admin.categories.index');
     }
 
-    public function destroy(Category $category)
+    public function destroy(Request $request, Category $category)
     {
+        $this->requireTaxonomyAccess($request);
+
         $category->delete();
 
         return redirect()->route('admin.categories.index');

@@ -72,4 +72,20 @@ class MediaLibraryDeletionTest extends TestCase
 
         $this->assertFileExists($this->imagesRoot . DIRECTORY_SEPARATOR . 'in-use-og.png');
     }
+
+    public function test_storage_style_featured_image_paths_still_block_media_deletion(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $path = '/images/blog/in-use-storage.png';
+        File::put($this->imagesRoot . DIRECTORY_SEPARATOR . 'in-use-storage.png', 'image');
+
+        Post::factory()->create(['featured_image_path' => '/storage/images/blog/in-use-storage.png']);
+
+        $this->actingAs($admin)
+            ->deleteJson(route('admin.media.destroy'), ['path' => $path])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'This image is still being used by a post.');
+
+        $this->assertFileExists($this->imagesRoot . DIRECTORY_SEPARATOR . 'in-use-storage.png');
+    }
 }

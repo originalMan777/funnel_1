@@ -19,6 +19,24 @@ class AiPostPackageParserTest extends TestCase
         $this->assertSame('Buyers', $parsed['category']);
         $this->assertSame(['buyer mistakes', 'home buying strategy', 'first-time home buyers'], $parsed['tags']);
         $this->assertFalse($parsed['noindex']);
+        $this->assertSame([
+            'title',
+            'article',
+            'seo_title',
+            'slug',
+            'excerpt',
+            'sources',
+            'category',
+            'tags',
+            'meta_title',
+            'meta_description',
+            'canonical_url',
+            'og_title',
+            'og_description',
+            'featured_image_path',
+            'og_image_path',
+            'noindex',
+        ], array_keys($parsed));
     }
 
     public function test_it_rejects_wrong_list_order(): void
@@ -27,6 +45,42 @@ class AiPostPackageParserTest extends TestCase
 
         $parser = new AiPostPackageParser();
         $parser->parse(str_replace('- SEO Title:', '- Slug:', $this->validPackage()));
+    }
+
+    public function test_it_rejects_missing_required_list_rows(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        $parser = new AiPostPackageParser();
+        $parser->parse(str_replace("- OG Image Path: /images/blog/buyer-mistakes-strategies-og.jpg\n", '', $this->validPackage()));
+    }
+
+    public function test_it_rejects_packages_that_do_not_follow_title_article_list_structure(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        $parser = new AiPostPackageParser();
+        $parser->parse("TITLE:\nOnly a title\n\nLIST:\n- SEO Title: Missing article");
+    }
+
+    public function test_it_rejects_invalid_noindex_values(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        $parser = new AiPostPackageParser();
+        $parser->parse(str_replace('- Noindex: No', '- Noindex: Maybe', $this->validPackage()));
+    }
+
+    public function test_it_rejects_unsafe_canonical_urls(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        $parser = new AiPostPackageParser();
+        $parser->parse(str_replace(
+            'https://www.example.com/blog/buyer-mistakes-strategies',
+            'javascript:alert(1)',
+            $this->validPackage()
+        ));
     }
 
     private function validPackage(): string

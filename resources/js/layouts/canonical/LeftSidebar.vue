@@ -148,6 +148,7 @@ const sections: SidebarSection[] = [
         links: [
             { name: 'All Posts', route: '/admin/posts' },
             { name: 'Create Post', route: '/admin/posts/create' },
+            { name: 'Archived Posts', route: '/admin/posts/archived' },
             { name: 'Categories', route: '/admin/categories' },
             { name: 'Tags', route: '/admin/tags' },
         ],
@@ -155,7 +156,7 @@ const sections: SidebarSection[] = [
     {
         title: 'Leads',
         links: [
-            { name: 'Lead Boxes', route: '/admin/lead-boxes' },
+            { name: 'Lead Boxes', route: '/admin/lead-boxes/create' },
             { name: 'Lead Slots', route: '/admin/lead-slots' },
             { name: 'All Leads', route: cs('All Leads') },
             { name: 'Consultations', route: cs('Consultations') },

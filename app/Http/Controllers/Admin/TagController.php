@@ -10,8 +10,17 @@ use Inertia\Inertia;
 
 class TagController extends Controller
 {
-    public function index()
+    private function requireTaxonomyAccess(Request $request): void
     {
+        if (! $request->user()?->canManageTaxonomy()) {
+            abort(403);
+        }
+    }
+
+    public function index(Request $request)
+    {
+        $this->requireTaxonomyAccess($request);
+
         $tags = Tag::query()
             ->orderBy('name')
             ->get(['id', 'name', 'slug', 'created_at', 'updated_at']);
@@ -23,6 +32,8 @@ class TagController extends Controller
 
     public function store(Request $request)
     {
+        $this->requireTaxonomyAccess($request);
+
         $validated = $this->validateTag($request);
 
         $baseSlug = ($validated['slug'] ?? '') !== ''
@@ -51,6 +62,8 @@ class TagController extends Controller
 
     public function update(Request $request, Tag $tag)
     {
+        $this->requireTaxonomyAccess($request);
+
         $validated = $this->validateTag($request);
 
         $baseSlug = ($validated['slug'] ?? '') !== ''
@@ -67,8 +80,10 @@ class TagController extends Controller
         return redirect()->route('admin.tags.index');
     }
 
-    public function destroy(Tag $tag)
+    public function destroy(Request $request, Tag $tag)
     {
+        $this->requireTaxonomyAccess($request);
+
         $tag->delete();
 
         return redirect()->route('admin.tags.index');

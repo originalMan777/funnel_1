@@ -1,5 +1,22 @@
 <script setup lang="ts">
 import FrontLayout from '@/layouts/FrontLayout.vue'
+import { useForm } from '@inertiajs/vue3'
+
+const form = useForm({
+  name: '',
+  email: '',
+  message: '',
+})
+
+function submit() {
+  form.post(route('contact.store'), {
+    preserveScroll: true,
+    onSuccess: () => {
+      form.reset()
+      alert('Message sent successfully.')
+    },
+  })
+}
 </script>
 
 <template>
@@ -53,50 +70,77 @@ import FrontLayout from '@/layouts/FrontLayout.vue'
             </div>
 
             <div class="rounded-[32px] bg-white p-8 shadow-sm ring-1 ring-black/5 md:p-10">
-              <form class="space-y-5">
-                <div class="space-y-2">
-                  <label class="text-sm font-medium text-gray-900">Full Name</label>
-                  <input
-                    type="text"
-                    class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition focus:border-gray-300 focus:ring-2 focus:ring-gray-200"
-                    placeholder="Your name"
-                  />
+              <div class="space-y-5">
+                <div class="rounded-2xl bg-stone-50 px-5 py-4 ring-1 ring-black/5">
+                  <p class="font-medium text-gray-900">Start with the contact form.</p>
+                  <p class="mt-1 text-sm leading-relaxed text-gray-600">
+                    Use this page to send a direct message with your question or situation.
+                  </p>
                 </div>
 
-                <div class="space-y-2">
-                  <label class="text-sm font-medium text-gray-900">Email Address</label>
-                  <input
-                    type="email"
-                    class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition focus:border-gray-300 focus:ring-2 focus:ring-gray-200"
-                    placeholder="you@example.com"
-                  />
+                <div class="rounded-2xl bg-stone-50 px-5 py-4 ring-1 ring-black/5">
+                  <p class="font-medium text-gray-900">Good for:</p>
+                  <ul class="mt-3 space-y-2 text-sm leading-relaxed text-gray-600">
+                    <li>General real estate questions</li>
+                    <li>Early-stage inquiries</li>
+                    <li>Questions before booking a consultation</li>
+                    <li>Requests for more information</li>
+                  </ul>
                 </div>
 
-                <div class="space-y-2">
-                  <label class="text-sm font-medium text-gray-900">Phone Number</label>
-                  <input
-                    type="text"
-                    class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition focus:border-gray-300 focus:ring-2 focus:ring-gray-200"
-                    placeholder="(000) 000-0000"
-                  />
-                </div>
+                <form @submit.prevent="submit" class="space-y-4">
+                  <div class="space-y-2">
+                    <label class="text-sm font-medium text-gray-900">Full Name</label>
+                    <input
+                      v-model="form.name"
+                      type="text"
+                      class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition focus:border-gray-300 focus:ring-2 focus:ring-gray-200"
+                      placeholder="Your name"
+                    />
+                    <p v-if="form.errors.name" class="text-sm text-red-600">
+                      {{ form.errors.name }}
+                    </p>
+                  </div>
 
-                <div class="space-y-2">
-                  <label class="text-sm font-medium text-gray-900">Message</label>
-                  <textarea
-                    rows="6"
-                    class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition focus:border-gray-300 focus:ring-2 focus:ring-gray-200"
-                    placeholder="Tell us a little about what you need help with..."
-                  ></textarea>
-                </div>
+                  <div class="space-y-2">
+                    <label class="text-sm font-medium text-gray-900">Email Address</label>
+                    <input
+                      v-model="form.email"
+                      type="email"
+                      class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition focus:border-gray-300 focus:ring-2 focus:ring-gray-200"
+                      placeholder="you@example.com"
+                    />
+                    <p v-if="form.errors.email" class="text-sm text-red-600">
+                      {{ form.errors.email }}
+                    </p>
+                  </div>
 
-                <button
-                  type="submit"
-                  class="inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-6 py-3.5 font-medium text-white transition hover:bg-gray-800"
-                >
-                  Send Message
-                </button>
-              </form>
+                  <div class="space-y-2">
+                    <label class="text-sm font-medium text-gray-900">Message</label>
+                    <textarea
+                      v-model="form.message"
+                      rows="5"
+                      class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition focus:border-gray-300 focus:ring-2 focus:ring-gray-200"
+                      placeholder="Tell us a little about what you need help with..."
+                    ></textarea>
+                    <p v-if="form.errors.message" class="text-sm text-red-600">
+                      {{ form.errors.message }}
+                    </p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    :disabled="form.processing"
+                    class="inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-6 py-3.5 font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {{ form.processing ? 'Sending...' : 'Send Message' }}
+                  </button>
+
+                  <div v-if="form.recentlySuccessful" class="text-sm text-green-600">
+                    Message sent successfully.
+                  </div>
+                </form>
+              </div>
             </div>
           </div>
         </div>

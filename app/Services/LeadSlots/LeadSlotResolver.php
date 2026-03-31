@@ -8,6 +8,12 @@ use App\Models\LeadSlot;
 
 class LeadSlotResolver
 {
+    private const SLOT_TYPE_MAP = [
+        'home_intro' => LeadBox::TYPE_RESOURCE,
+        'home_mid' => LeadBox::TYPE_SERVICE,
+        'home_bottom' => LeadBox::TYPE_OFFER,
+    ];
+
     private const HOME_SLOT_KEYS = [
         'home_intro',
         'home_mid',
@@ -61,8 +67,12 @@ class LeadSlotResolver
         }
 
         $leadBox = $assignment->leadBox;
+        $requiredType = self::SLOT_TYPE_MAP[$slotKey] ?? null;
 
-        if (trim(strtolower((string) $leadBox->status)) !== LeadBox::STATUS_ACTIVE) {
+        if (
+            trim(strtolower((string) $leadBox->status)) !== LeadBox::STATUS_ACTIVE
+            || ($requiredType !== null && $leadBox->type !== $requiredType)
+        ) {
             return null;
         }
 

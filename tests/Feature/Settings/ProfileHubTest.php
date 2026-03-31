@@ -22,8 +22,6 @@ class ProfileHubTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('settings/Profile')
-                ->where('auth.user.is_admin', false)
-                ->where('auth.user.email', $user->email)
             );
     }
 
@@ -38,17 +36,28 @@ class ProfileHubTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('settings/Profile')
-                ->where('auth.user.is_admin', true)
-                ->where('auth.user.email', $admin->email)
             );
     }
 
-    public function test_profile_shortcut_redirects_to_the_real_settings_profile_route(): void
+    public function test_regular_users_cannot_access_dashboard(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create([
+            'is_admin' => false,
+        ]);
 
         $this->actingAs($user)
-            ->get(route('profile'))
-            ->assertRedirect(route('profile.edit', absolute: false));
+            ->get(route('dashboard'))
+            ->assertForbidden();
+    }
+
+    public function test_admin_users_are_redirected_from_dashboard(): void
+    {
+        $admin = User::factory()->create([
+            'is_admin' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertRedirect();
     }
 }

@@ -6,18 +6,49 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Post;
 use App\Models\Tag;
+use App\Services\Blog\PostContentSanitizer;
+use App\Services\Media\SecureImageUploadService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class PostController extends Controller
 {
+    public function __construct(
+        private readonly PostContentSanitizer $sanitizer,
+        private readonly SecureImageUploadService $secureImageUploadService,
+    ) {
+    }
+
+    private function requirePostAccess(Request $request): void
+    {
+        if (! $request->user()?->canManagePosts()) {
+            abort(403);
+        }
+    }
+
+    private function requirePublishAccess(Request $request): void
+    {
+        if (! $request->user()?->canPublishPosts()) {
+            abort(403);
+        }
+    }
+
+    private function requireDeleteAccess(Request $request): void
+    {
+        if (! $request->user()?->canDeletePosts()) {
+            abort(403);
+        }
+    }
+
     public function index(Request $request)
     {
+        $this->requirePostAccess($request);
+
         $search = trim((string) $request->query('search', ''));
         $status = (string) $request->query('status', 'all');
 
@@ -28,6 +59,7 @@ class PostController extends Controller
         }
 
         $posts = Post::query()
+            ->whereNull('archived_at')
             ->with('category:id,name')
             ->select([
                 'id',
@@ -64,29 +96,76 @@ class PostController extends Controller
         ]);
     }
 
-    public function create()
+    public function archived(Request $request)
     {
+        $this->requirePostAccess($request);
+
+        $posts = Post::query()
+            ->whereNotNull('archived_at')
+            ->with('category:id,name')
+            ->select([
+                'id',
+                'title',
+                'slug',
+                'status',
+                'published_at',
+                'archived_at',
+                'updated_at',
+                'category_id',
+                'featured_image_path',
+            ])
+            ->orderByDesc('archived_at')
+            ->paginate(15)
+            ->withQueryString()
+            ->through(fn (Post $post) => [
+                'id' => $post->id,
+                'title' => $post->title,
+                'slug' => $post->slug,
+                'status' => $post->status,
+                'category_name' => $post->category?->name,
+                'published_at' => $post->published_at,
+                'archived_at' => $post->archived_at,
+                'updated_at' => $post->updated_at,
+                'featured_image_url' => $this->resolveMediaUrl($post->featured_image_path),
+            ]);
+
+        return Inertia::render('Admin/Posts/Archived', [
+            'posts' => $posts,
+        ]);
+    }
+
+    public function create(Request $request)
+    {
+        $this->requirePostAccess($request);
+
         return Inertia::render('Admin/Posts/Create', [
             'categories' => Category::query()->orderBy('name')->get(['id', 'name', 'slug']),
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'slug']),
-            'navigator' => $this->buildPostNavigator($post),
+            'navigator' => [
+                'previous' => null,
+                'next' => null,
+            ],
         ]);
     }
 
     public function store(Request $request)
     {
+        $this->requirePostAccess($request);
+
         $validated = $this->validatePost($request);
-        $validated['noindex'] = (bool) ($validated['noindex'] ?? false);
-        $validated['is_featured'] = (bool) ($validated['is_featured'] ?? false);
+        $validated = $this->normalizeValidatedPostData($validated);
+        $validated['content'] = $this->sanitizer->sanitizeForStorage((string) $validated['content']);
 
         $tagIds = Arr::pull($validated, 'tag_ids', []);
         $newTags = Arr::pull($validated, 'new_tags', []);
         $newCategory = Arr::pull($validated, 'new_category', null);
 
         if ($newCategory && trim($newCategory) !== '') {
+            $categoryName = $this->cleanInlineText($newCategory);
+
             $category = Category::firstOrCreate(
-                ['slug' => Str::slug($newCategory)],
-                ['name' => $newCategory]
+                ['slug' => Str::slug($categoryName)],
+                ['name' => $categoryName]
             );
 
             $validated['category_id'] = $category->id;
@@ -98,9 +177,15 @@ class PostController extends Controller
                     continue;
                 }
 
+                $safeTagName = $this->cleanInlineText($tagName);
+
+                if ($safeTagName === '') {
+                    continue;
+                }
+
                 $tag = Tag::firstOrCreate(
-                    ['slug' => Str::slug($tagName)],
-                    ['name' => $tagName]
+                    ['slug' => Str::slug($safeTagName)],
+                    ['name' => $safeTagName]
                 );
 
                 $tagIds[] = $tag->id;
@@ -121,7 +206,9 @@ class PostController extends Controller
         $validated['slug'] = $this->generateUniqueSlug($baseSlug);
 
         if ($featuredImage) {
-            $validated['featured_image_path'] = $this->storeImageInBlogLibrary(
+            $this->assertSafeUploadedImage($featuredImage);
+
+            $validated['featured_image_path'] = $this->secureImageUploadService->storeForBlogPost(
                 $featuredImage,
                 $validated['slug']
             );
@@ -141,11 +228,18 @@ class PostController extends Controller
 
         $post->tags()->sync($tagIds);
 
+        $this->logAdminAction('post_created', $request, $post, [
+            'status' => $post->status,
+            'tag_count' => count($tagIds),
+        ]);
+
         return redirect()->route('admin.posts.edit', $post);
     }
 
-    public function show(Post $post)
+    public function show(Request $request, Post $post)
     {
+        $this->requirePostAccess($request);
+
         $post->load(['category:id,name', 'tags:id,name']);
 
         return Inertia::render('Admin/Posts/Show', [
@@ -161,6 +255,7 @@ class PostController extends Controller
                 'featured_image_url' => $this->resolveMediaUrl($post->featured_image_path),
                 'status' => $post->status,
                 'published_at' => $post->published_at,
+                'archived_at' => $post->archived_at,
                 'updated_at' => $post->updated_at,
                 'meta_title' => $post->meta_title,
                 'meta_description' => $post->meta_description,
@@ -174,8 +269,10 @@ class PostController extends Controller
         ]);
     }
 
-    public function edit(Post $post)
+    public function edit(Request $request, Post $post)
     {
+        $this->requirePostAccess($request);
+
         $featuredImageUrl = $this->resolveMediaUrl($post->featured_image_path);
 
         return Inertia::render('Admin/Posts/Edit', [
@@ -193,6 +290,7 @@ class PostController extends Controller
                 'featured_image_url' => $featuredImageUrl,
                 'status' => $post->status,
                 'published_at' => $post->published_at,
+                'archived_at' => $post->archived_at,
                 'meta_title' => $post->meta_title,
                 'meta_description' => $post->meta_description,
                 'canonical_url' => $post->canonical_url,
@@ -209,18 +307,22 @@ class PostController extends Controller
 
     public function update(Request $request, Post $post)
     {
+        $this->requirePostAccess($request);
+
         $validated = $this->validatePost($request);
-        $validated['noindex'] = (bool) ($validated['noindex'] ?? false);
-        $validated['is_featured'] = (bool) ($validated['is_featured'] ?? false);
+        $validated = $this->normalizeValidatedPostData($validated);
+        $validated['content'] = $this->sanitizer->sanitizeForStorage((string) $validated['content']);
 
         $tagIds = Arr::pull($validated, 'tag_ids', []);
         $newTags = Arr::pull($validated, 'new_tags', []);
         $newCategory = Arr::pull($validated, 'new_category', null);
 
         if ($newCategory && trim($newCategory) !== '') {
+            $categoryName = $this->cleanInlineText($newCategory);
+
             $category = Category::firstOrCreate(
-                ['slug' => Str::slug($newCategory)],
-                ['name' => $newCategory]
+                ['slug' => Str::slug($categoryName)],
+                ['name' => $categoryName]
             );
 
             $validated['category_id'] = $category->id;
@@ -232,9 +334,15 @@ class PostController extends Controller
                     continue;
                 }
 
+                $safeTagName = $this->cleanInlineText($tagName);
+
+                if ($safeTagName === '') {
+                    continue;
+                }
+
                 $tag = Tag::firstOrCreate(
-                    ['slug' => Str::slug($tagName)],
-                    ['name' => $tagName]
+                    ['slug' => Str::slug($safeTagName)],
+                    ['name' => $safeTagName]
                 );
 
                 $tagIds[] = $tag->id;
@@ -255,7 +363,9 @@ class PostController extends Controller
         $validated['slug'] = $this->generateUniqueSlug($baseSlug, $post->id);
 
         if ($featuredImage) {
-            $validated['featured_image_path'] = $this->storeImageInBlogLibrary(
+            $this->assertSafeUploadedImage($featuredImage);
+
+            $validated['featured_image_path'] = $this->secureImageUploadService->storeForBlogPost(
                 $featuredImage,
                 $validated['slug']
             );
@@ -272,58 +382,140 @@ class PostController extends Controller
 
         $post->tags()->sync($tagIds);
 
+        $this->logAdminAction('post_updated', $request, $post, [
+            'status' => $post->status,
+            'tag_count' => count($tagIds),
+        ]);
+
         return redirect()
             ->route('admin.posts.edit', $post)
             ->with('success', 'Post saved.');
     }
 
-    public function publish(Post $post)
-{
-    $post->update([
-        'status' => Post::STATUS_PUBLISHED,
-        'published_at' => now(),
-        'updated_by' => auth()->id(),
-    ]);
+    public function publish(Request $request, Post $post)
+    {
+        $this->requirePublishAccess($request);
 
-    return back()->with('success', 'Post published successfully.');
-}
+        $post->update([
+            'status' => Post::STATUS_PUBLISHED,
+            'published_at' => now(),
+            'updated_by' => (int) $request->user()->id,
+        ]);
 
-public function unpublish(Post $post)
-{
-    $post->update([
-        'status' => Post::STATUS_DRAFT,
-        'published_at' => null,
-        'updated_by' => auth()->id(),
-    ]);
+        $this->logAdminAction('post_published', $request, $post, [
+            'status' => $post->status,
+        ]);
 
-    return back()->with('success', 'Post unpublished successfully.');
-}
+        return to_route('admin.posts.edit', $post);
+    }
 
-public function destroy(Post $post)
-{
-    $post->tags()->detach();
-    $post->delete();
+    public function unpublish(Request $request, Post $post)
+    {
+        $this->requirePublishAccess($request);
 
-    return back()->with('success', 'Post deleted successfully.');
-}
+        $post->update([
+            'status' => Post::STATUS_DRAFT,
+            'published_at' => null,
+            'updated_by' => (int) $request->user()->id,
+        ]);
+
+        $this->logAdminAction('post_unpublished', $request, $post, [
+            'status' => $post->status,
+        ]);
+
+        return to_route('admin.posts.edit', $post);
+    }
+
+    public function archive(Request $request, Post $post)
+    {
+        $this->requirePostAccess($request);
+
+        $post->update([
+            'archived_at' => now(),
+            'updated_by' => (int) $request->user()->id,
+        ]);
+
+        $this->logAdminAction('post_archived', $request, $post, [
+            'archived_at' => $post->archived_at,
+        ]);
+
+        return redirect()
+        ->route('admin.posts.archived')
+        ->with(
+            'success',
+            'This post is archived. To access archives, use the Archives button in the left sidebar.'
+        );
+    }
+
+    public function destroy(Request $request, Post $post)
+    {
+        $this->requireDeleteAccess($request);
+
+        $postId = $post->id;
+        $postTitle = $post->title;
+        $postSlug = $post->slug;
+
+        $post->tags()->detach();
+        $post->delete();
+
+        Log::channel(config('logging.default'))->info('admin_post_deleted', [
+            'event' => 'admin_post_deleted',
+            'user_id' => (int) $request->user()->id,
+            'post_id' => $postId,
+            'post_title' => $postTitle,
+            'post_slug' => $postSlug,
+            'ip' => $request->ip(),
+            'user_agent' => (string) $request->userAgent(),
+            'occurred_at' => now()->toIso8601String(),
+        ]);
+
+        return to_route('admin.posts.index')
+            ->with('success', 'Post deleted successfully.');
+    }
+
     private function validatePost(Request $request): array
     {
         return $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'slug' => ['nullable', 'string', 'max:255'],
-            'excerpt' => ['nullable', 'string'],
-            'content' => ['required', 'string'],
-            'sources' => ['nullable', 'string'],
+            'excerpt' => ['nullable', 'string', 'max:3000'],
+            'content' => ['required', 'string', 'max:200000'],
+            'sources' => ['nullable', 'string', 'max:5000'],
             'category_id' => ['nullable', 'integer', 'exists:categories,id'],
             'new_category' => ['nullable', 'string', 'max:255'],
             'new_tags' => ['nullable', 'array'],
             'new_tags.*' => ['string', 'max:255'],
             'meta_title' => ['nullable', 'string', 'max:255'],
-            'meta_description' => ['nullable', 'string'],
-            'canonical_url' => ['nullable', 'string', 'max:2048'],
+            'meta_description' => ['nullable', 'string', 'max:320'],
+            'canonical_url' => ['nullable', 'url', 'max:2048'],
             'og_title' => ['nullable', 'string', 'max:255'],
-            'og_description' => ['nullable', 'string'],
-            'og_image_path' => ['nullable', 'string', 'max:2048'],
+            'og_description' => ['nullable', 'string', 'max:320'],
+            'og_image_path' => [
+                'nullable',
+                'string',
+                'max:2048',
+                function ($attribute, $value, $fail) {
+                    $trimmed = trim((string) $value);
+
+                    if ($trimmed === '') {
+                        return;
+                    }
+
+                    if (Str::startsWith($trimmed, ['http://', 'https://'])) {
+                        return;
+                    }
+
+                    if (Post::normalizeManagedImagePath($trimmed) !== null) {
+                        return;
+                    }
+
+                    if (Str::startsWith($trimmed, ['/storage/', 'storage/'])) {
+                        return;
+                    }
+
+                    $fail('The OG image path must be a full URL or a supported local media path.');
+                },
+            ],
             'noindex' => ['sometimes', 'boolean'],
             'is_featured' => ['sometimes', 'boolean'],
             'tag_ids' => ['nullable', 'array'],
@@ -334,13 +526,85 @@ public function destroy(Post $post)
                 'string',
                 'max:2048',
                 function ($attribute, $value, $fail) {
-                    if ($value && !Str::startsWith($value, ['/images/', '/storage/'])) {
+                    $trimmed = trim((string) $value);
+
+                    if ($trimmed === '') {
+                        return;
+                    }
+
+                    if (Post::normalizeManagedImagePath($trimmed) !== null) {
+                        return;
+                    }
+
+                    if (!Str::startsWith($trimmed, ['/storage/', 'storage/'])) {
                         $fail('The featured image path must be inside /images or /storage.');
                     }
                 },
             ],
             'remove_featured_image' => ['sometimes', 'boolean'],
         ]);
+    }
+
+    private function normalizeValidatedPostData(array $validated): array
+    {
+        $validated['title'] = $this->cleanInlineText((string) ($validated['title'] ?? ''));
+        $validated['slug'] = isset($validated['slug']) ? $this->cleanInlineText((string) $validated['slug']) : null;
+        $validated['excerpt'] = isset($validated['excerpt']) ? trim((string) $validated['excerpt']) : null;
+        $validated['sources'] = isset($validated['sources']) ? trim(strip_tags((string) $validated['sources'])) : null;
+        $validated['meta_title'] = isset($validated['meta_title']) ? $this->cleanInlineText((string) $validated['meta_title']) : null;
+        $validated['meta_description'] = isset($validated['meta_description']) ? trim(strip_tags((string) $validated['meta_description'])) : null;
+        $validated['canonical_url'] = isset($validated['canonical_url']) ? trim((string) $validated['canonical_url']) : null;
+        $validated['og_title'] = isset($validated['og_title']) ? $this->cleanInlineText((string) $validated['og_title']) : null;
+        $validated['og_description'] = isset($validated['og_description']) ? trim(strip_tags((string) $validated['og_description'])) : null;
+        $validated['og_image_path'] = isset($validated['og_image_path'])
+            ? ($this->normalizeMediaPath((string) $validated['og_image_path']) ?? trim((string) $validated['og_image_path']))
+            : null;
+        $validated['new_category'] = isset($validated['new_category']) ? $this->cleanInlineText((string) $validated['new_category']) : null;
+        $validated['featured_image_path'] = isset($validated['featured_image_path'])
+            ? ($this->normalizeMediaPath((string) $validated['featured_image_path']) ?? trim((string) $validated['featured_image_path']))
+            : null;
+
+        if (isset($validated['new_tags']) && is_array($validated['new_tags'])) {
+            $validated['new_tags'] = array_values(array_filter(array_map(
+                fn ($tag) => $this->cleanInlineText((string) $tag),
+                $validated['new_tags']
+            )));
+        }
+
+        $validated['noindex'] = (bool) ($validated['noindex'] ?? false);
+        $validated['is_featured'] = (bool) ($validated['is_featured'] ?? false);
+
+        return $validated;
+    }
+
+    private function cleanInlineText(string $value): string
+    {
+        return Str::squish(strip_tags($value));
+    }
+
+    private function assertSafeUploadedImage(UploadedFile $file): void
+    {
+        $realPath = $file->getRealPath();
+
+        if ($realPath === false) {
+            abort(422, 'Invalid uploaded image.');
+        }
+
+        $imageInfo = @getimagesize($realPath);
+
+        if ($imageInfo === false || !isset($imageInfo['mime'])) {
+            abort(422, 'Uploaded file is not a valid image.');
+        }
+
+        $allowedMimes = [
+            'image/jpeg',
+            'image/png',
+            'image/webp',
+        ];
+
+        if (!in_array((string) $imageInfo['mime'], $allowedMimes, true)) {
+            abort(422, 'Unsupported image type.');
+        }
     }
 
     private function generateUniqueSlug(string $input, ?int $ignoreId = null): string
@@ -372,39 +636,49 @@ public function destroy(Post $post)
 
     private function buildPostNavigator(Post $post): array
     {
-        $orderedIds = Post::query()
+        $previous = Post::query()
+            ->whereNull('archived_at')
+            ->where(function ($query) use ($post) {
+                $query
+                    ->where('updated_at', '>', $post->updated_at)
+                    ->orWhere(function ($nested) use ($post) {
+                        $nested
+                            ->where('updated_at', '=', $post->updated_at)
+                            ->where('id', '>', $post->id);
+                    });
+            })
+            ->orderBy('updated_at')
+            ->orderBy('id')
+            ->first(['id', 'title']);
+
+        $next = Post::query()
+            ->whereNull('archived_at')
+            ->where(function ($query) use ($post) {
+                $query
+                    ->where('updated_at', '<', $post->updated_at)
+                    ->orWhere(function ($nested) use ($post) {
+                        $nested
+                            ->where('updated_at', '=', $post->updated_at)
+                            ->where('id', '<', $post->id);
+                    });
+            })
             ->orderByDesc('updated_at')
             ->orderByDesc('id')
-            ->pluck('id')
-            ->values();
-
-        $currentIndex = $orderedIds->search($post->id);
-
-        if ($currentIndex === false) {
-            return [
-                'previous' => null,
-                'next' => null,
-            ];
-        }
-
-        $previousId = $currentIndex > 0 ? $orderedIds->get($currentIndex - 1) : null;
-        $nextId = $currentIndex < ($orderedIds->count() - 1) ? $orderedIds->get($currentIndex + 1) : null;
-
-        $neighbors = Post::query()
-            ->whereIn('id', array_filter([$previousId, $nextId]))
-            ->get(['id', 'title'])
-            ->keyBy('id');
-
-        $mapPost = static fn (?int $id) => $id && $neighbors->has($id)
-            ? [
-                'id' => $id,
-                'title' => $neighbors->get($id)?->title,
-            ]
-            : null;
+            ->first(['id', 'title']);
 
         return [
-            'previous' => $mapPost($previousId),
-            'next' => $mapPost($nextId),
+            'previous' => $previous
+                ? [
+                    'id' => $previous->id,
+                    'title' => $previous->title,
+                ]
+                : null,
+            'next' => $next
+                ? [
+                    'id' => $next->id,
+                    'title' => $next->title,
+                ]
+                : null,
         ];
     }
 
@@ -431,18 +705,28 @@ public function destroy(Post $post)
         return '/images/blog/' . $candidate;
     }
 
+    private function normalizeMediaPath(?string $path): ?string
+    {
+        return Post::normalizeManagedImagePath($path);
+    }
+
     private function resolveMediaUrl(?string $path): ?string
     {
-        if (!$path) {
-            return null;
-        }
+        return Post::resolveImageUrl($path);
+    }
 
-        $path = trim($path);
-
-        if (Str::startsWith($path, ['http://', 'https://', '/'])) {
-            return $path;
-        }
-
-        return Storage::disk('public')->url($path);
+    private function logAdminAction(string $event, Request $request, Post $post, array $extra = []): void
+    {
+        Log::channel(config('logging.default'))->info($event, [
+            'event' => $event,
+            'user_id' => (int) $request->user()->id,
+            'post_id' => $post->id,
+            'post_slug' => $post->slug,
+            'post_status' => $post->status,
+            'ip' => $request->ip(),
+            'user_agent' => (string) $request->userAgent(),
+            'occurred_at' => now()->toIso8601String(),
+            ...$extra,
+        ]);
     }
 }

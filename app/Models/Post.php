@@ -27,6 +27,7 @@ class Post extends Model
         'is_featured',
         'status',
         'published_at',
+        'archived_at',
         'meta_title',
         'meta_description',
         'canonical_url',
@@ -41,20 +42,21 @@ class Post extends Model
 
     protected $casts = [
         'published_at' => 'datetime',
+        'archived_at' => 'datetime',
         'is_featured' => 'boolean',
         'noindex' => 'boolean',
     ];
 
-    public function getFeaturedImageUrlAttribute(): ?string
+    public static function normalizeManagedImagePath(?string $path): ?string
     {
-        if (!$this->featured_image_path) {
+        if ($path === null) {
             return null;
         }
 
-        $path = trim($this->featured_image_path);
+        $path = trim($path);
 
-        if (Str::startsWith($path, ['http://', 'https://'])) {
-            return $path;
+        if ($path === '') {
+            return null;
         }
 
         if (Str::startsWith($path, '/images/')) {
@@ -73,11 +75,45 @@ class Post extends Model
             return '/' . Str::replaceFirst('storage/images/', 'images/', ltrim($path, '/'));
         }
 
+        return null;
+    }
+
+    public static function resolveImageUrl(?string $path): ?string
+    {
+        if ($path === null) {
+            return null;
+        }
+
+        $path = trim($path);
+
+        if ($path === '') {
+            return null;
+        }
+
+        if (Str::startsWith($path, ['http://', 'https://'])) {
+            return $path;
+        }
+
+        $normalizedManagedPath = self::normalizeManagedImagePath($path);
+
+        if ($normalizedManagedPath !== null) {
+            return $normalizedManagedPath;
+        }
+
         if (Str::startsWith($path, '/storage/')) {
             return $path;
         }
 
+        if (Str::startsWith($path, 'storage/')) {
+            return '/' . ltrim($path, '/');
+        }
+
         return Storage::disk('public')->url($path);
+    }
+
+    public function getFeaturedImageUrlAttribute(): ?string
+    {
+        return self::resolveImageUrl($this->featured_image_path);
     }
 
     public function category(): BelongsTo
@@ -103,6 +139,7 @@ class Post extends Model
     public function scopePublished(Builder $query): Builder
     {
         return $query
+            ->whereNull('archived_at')
             ->where('status', self::STATUS_PUBLISHED)
             ->whereNotNull('published_at')
             ->where('published_at', '<=', now());

@@ -76,9 +76,7 @@
 
 <script setup lang="ts">
 import { usePage, router } from "@inertiajs/vue3";
-import axios from "axios";
 import { computed, ref, watch } from "vue";
-
 
 type Mode = "buttons" | "badge" | "none";
 
@@ -94,7 +92,6 @@ type ButtonDef = {
   };
   lockOnActive?: boolean;
 };
-
 
 const props = defineProps({
   itemId: { type: [String, Number], required: false, default: null },
@@ -115,6 +112,7 @@ const page = usePage();
  * }
  */
 const sb = computed<any>(() => page.props?.stateBar ?? null);
+const pagePost = computed<any>(() => page.props?.post ?? null);
 
 // If page disables stateBar, render nothing
 const isVisible = computed(() => {
@@ -123,9 +121,24 @@ const isVisible = computed(() => {
 });
 
 const ctx = computed(() => {
+  const fallbackPostId =
+    pagePost.value?.id ??
+    pagePost.value?.post?.id ??
+    null;
+
+  const resolvedType =
+    props.type ??
+    sb.value?.type ??
+    (fallbackPostId ? "post" : null);
+
+  const resolvedItemId =
+    props.itemId ??
+    sb.value?.itemId ??
+    fallbackPostId;
+
   return {
-    itemId: props.itemId ?? sb.value?.itemId ?? null,
-    type: props.type ?? sb.value?.type ?? null,
+    itemId: resolvedItemId,
+    type: resolvedType,
     initialState: props.initialState ?? sb.value?.initialState ?? "draft",
   };
 });
@@ -254,9 +267,32 @@ const handleButton = (btn: ButtonDef) => {
   }
 };
 
-
 const performTransition = (action: string) => {
   if (!enabled.value) return;
+
+  if (ctx.value.type === "post" && ctx.value.itemId) {
+    const id = ctx.value.itemId;
+
+    if (action === "archive" || action === "unarchive") {
+      router.patch(`/admin/posts/${id}/archive`, {}, {
+        preserveScroll: true,
+      });
+      return;
+    }
+
+    if (action === "delete") {
+      const confirmed = window.confirm(
+        "Are you sure you want to permanently delete this post?"
+      );
+
+      if (!confirmed) return;
+
+      router.delete(`/admin/posts/${id}`, {
+        preserveScroll: true,
+      });
+      return;
+    }
+  }
 
   router.visit("/admin/state", {
     method: "patch",

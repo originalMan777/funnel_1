@@ -134,6 +134,26 @@ const closePreview = () => {
     previewItem.value = null;
 };
 
+const previewIndex = computed(() => {
+    if (!previewItem.value) return -1;
+    return items.value.findIndex((item) => item.path === previewItem.value?.path);
+});
+
+const hasPreviousPreview = computed(() => previewIndex.value > 0);
+const hasNextPreview = computed(() => {
+    return previewIndex.value >= 0 && previewIndex.value < items.value.length - 1;
+});
+
+const openPreviousPreview = () => {
+    if (!hasPreviousPreview.value) return;
+    previewItem.value = items.value[previewIndex.value - 1] ?? null;
+};
+
+const openNextPreview = () => {
+    if (!hasNextPreview.value) return;
+    previewItem.value = items.value[previewIndex.value + 1] ?? null;
+};
+
 const selectItem = (item: MediaItem) => {
     emit('select', item.path);
     close();
@@ -406,7 +426,10 @@ watch(
             await loadMedia(1, true);
         } else {
             clearMessages();
-            uploadFile.value = null;
+            uploadFiles.value = [];
+            if (uploadInputRef.value) {
+                uploadInputRef.value.value = '';
+            }
             previewItem.value = null;
         }
     },
@@ -783,7 +806,7 @@ watch(perPage, () => {
                 class="w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl"
             >
                 <div
-                    class="flex items-center justify-between border-b border-gray-200 px-5 py-4"
+                    class="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 px-5 py-4"
                 >
                     <div>
                         <h3 class="text-base font-semibold text-gray-900">
@@ -794,13 +817,33 @@ watch(perPage, () => {
                         </p>
                     </div>
 
-                    <button
-                        type="button"
-                        class="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                        @click="closePreview"
-                    >
-                        Close
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button
+                            type="button"
+                            class="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            :disabled="!hasPreviousPreview"
+                            @click="openPreviousPreview"
+                        >
+                            Previous
+                        </button>
+
+                        <button
+                            type="button"
+                            class="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            :disabled="!hasNextPreview"
+                            @click="openNextPreview"
+                        >
+                            Next
+                        </button>
+
+                        <button
+                            type="button"
+                            class="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                            @click="closePreview"
+                        >
+                            Close
+                        </button>
+                    </div>
                 </div>
 
                 <div class="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">

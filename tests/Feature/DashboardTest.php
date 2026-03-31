@@ -25,17 +25,6 @@ class DashboardTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_unverified_admin_users_are_redirected_to_the_verification_notice(): void
-    {
-        $admin = User::factory()->unverified()->create([
-            'is_admin' => true,
-        ]);
-
-        $this->actingAs($admin)
-            ->get(route('dashboard'))
-            ->assertRedirect(route('verification.notice', absolute: false));
-    }
-
     public function test_verified_admin_users_are_redirected_to_the_admin_dashboard_from_dashboard(): void
     {
         $admin = User::factory()->create([

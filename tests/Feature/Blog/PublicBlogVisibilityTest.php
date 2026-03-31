@@ -42,6 +42,21 @@ class PublicBlogVisibilityTest extends TestCase
         $this->get(route('blog.show', $post->slug))->assertNotFound();
     }
 
+    public function test_archived_posts_are_not_publicly_visible(): void
+    {
+        $post = Post::factory()->published()->create([
+            'title' => 'Archived Post',
+            'slug' => 'archived-post',
+            'archived_at' => now(),
+        ]);
+
+        $this->get(route('blog.index'))
+            ->assertOk()
+            ->assertDontSee('Archived Post');
+
+        $this->get(route('blog.show', $post->slug))->assertNotFound();
+    }
+
     public function test_published_posts_are_visible_on_show_category_and_tag_pages(): void
     {
         $category = Category::factory()->create(['name' => 'Market News', 'slug' => 'market-news']);

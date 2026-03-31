@@ -8,75 +8,107 @@ use App\Models\Category;
 use App\Models\Post;
 use App\Models\Tag;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class PostController extends Controller
 {
     public function index()
-    {
-        $posts = Post::query()
-            ->published()
-            ->with(['category:id,name,slug'])
-            ->orderByDesc('published_at')
-            ->select(['id', 'title', 'slug', 'excerpt', 'content', 'published_at', 'category_id', 'featured_image_path'])
-            ->paginate(18)
-            ->withQueryString();
+{
+    $categories = Category::query()
+        ->withCount([
+            'posts' => fn ($query) => $query->published(),
+        ])
+        ->orderBy('name')
+        ->get(['id', 'name', 'slug'])
+        ->map(fn (Category $category) => [
+            'name' => $category->name,
+            'slug' => $category->slug,
+            'count' => $category->posts_count,
+        ])
+        ->values();
 
-        $categories = Category::query()
-            ->withCount([
-                'posts' => fn ($query) => $query->published(),
-            ])
-            ->orderBy('name')
-            ->get(['id', 'name', 'slug'])
-            ->map(fn (Category $category) => [
-                'name' => $category->name,
-                'slug' => $category->slug,
-                'count' => $category->posts_count,
-            ])
-            ->values();
+    $sections = BlogIndexSection::query()
+        ->with('category:id,name,slug')
+        ->whereIn('section_key', BlogIndexSection::SECTION_KEYS)
+        ->get()
+        ->keyBy('section_key');
 
-        $usedIds = $posts->getCollection()->pluck('id')->all();
-        $sections = BlogIndexSection::query()
-            ->with('category:id,name,slug')
-            ->whereIn('section_key', BlogIndexSection::SECTION_KEYS)
-            ->get()
-            ->keyBy('section_key');
+    /*
+     |--------------------------------------------------------------------------
+     | Build configured sections first
+     |--------------------------------------------------------------------------
+     |
+     | These are admin-configured homepage slots, so they should be
+     | assembled first. We only use $usedIds to prevent the same posts
+     | from being reused across multiple configured sections.
+     |
+     | We do NOT exclude section posts from the main paginated feed.
+     | The feed remains the canonical blog list, while sections act as
+     | highlighted placements.
+     |
+     */
 
-        $wideSection = $this->buildSectionPayload(
-            $sections->get(BlogIndexSection::KEY_WIDE),
-            6,
-            $usedIds,
-        );
+    $usedIds = [];
 
-        $clusterLeft = $this->buildSectionPayload(
-            $sections->get(BlogIndexSection::KEY_CLUSTER_LEFT),
-            4,
-            $usedIds,
-        );
+    $wideSection = $this->buildSectionPayload(
+        $sections->get(BlogIndexSection::KEY_WIDE),
+        6,
+        $usedIds,
+    );
 
-        $clusterRight = $this->buildSectionPayload(
-            $sections->get(BlogIndexSection::KEY_CLUSTER_RIGHT),
-            4,
-            $usedIds,
-        );
+    $clusterLeft = $this->buildSectionPayload(
+        $sections->get(BlogIndexSection::KEY_CLUSTER_LEFT),
+        4,
+        $usedIds,
+    );
 
-        $posts->setCollection(
-            $posts->getCollection()->map(fn (Post $post) => $this->mapPostCard($post))
-        );
+    $clusterRight = $this->buildSectionPayload(
+        $sections->get(BlogIndexSection::KEY_CLUSTER_RIGHT),
+        4,
+        $usedIds,
+    );
 
-        return Inertia::render('Blog/Index', [
-            'posts' => $posts,
-            'categories' => $categories,
-            'wideSection' => $wideSection,
-            'clusterSection' => [
-                'left' => $clusterLeft,
-                'right' => $clusterRight,
-            ],
-        ]);
-    }
+    /*
+     |--------------------------------------------------------------------------
+     | Build main feed independently
+     |--------------------------------------------------------------------------
+     |
+     | The main blog feed should still list published posts even if they
+     | are also featured in configured homepage sections.
+     |
+     */
 
+    $posts = Post::query()
+        ->published()
+        ->with(['category:id,name,slug'])
+        ->orderByDesc('published_at')
+        ->select(['id', 'title', 'slug', 'excerpt', 'content', 'published_at', 'category_id', 'featured_image_path'])
+        ->paginate(18)
+        ->withQueryString();
+
+    $posts->setCollection(
+        $posts->getCollection()->map(fn (Post $post) => $this->mapPostCard($post))
+    );
+
+    return Inertia::render('Blog/Index', [
+        'posts' => $posts,
+        'categories' => $categories,
+        'wideSection' => $wideSection,
+        'clusterSection' => [
+        'left' => $clusterLeft,
+        'right' => $clusterRight,
+    ],
+
+    'leadSlots' => [
+        'blog_index_mid_lead' => [
+            'type' => 'offer',
+            'variant' => 'default',
+            'enabled' => true,
+        ],
+    ],
+    ]);
+}
     public function show(string $slug)
     {
         $post = Post::query()
@@ -109,26 +141,27 @@ class PostController extends Controller
         $robots = $post->noindex ? 'noindex,nofollow' : 'index,follow';
 
         return Inertia::render('Blog/Show', [
-            'post' => [
-                'title' => $post->title,
-                'slug' => $post->slug,
-                'excerpt' => $post->excerpt,
-                'published_at' => $post->published_at,
-                'featured_image_url' => $post->featured_image_url,
-                'content_html' => $post->content,
-                'sources' => $post->sources,
-                'category' => $post->category
-                    ? [
-                        'name' => $post->category->name,
-                        'slug' => $post->category->slug,
-                    ]
-                    : null,
-                'tags' => $post->tags->map(fn ($tag) => [
-                    'id' => $tag->id,
-                    'name' => $tag->name,
-                    'slug' => $tag->slug,
-                ])->values(),
-                'seo' => [
+                'post' => [
+                    'id' => $post->id,
+                    'title' => $post->title,
+                    'slug' => $post->slug,
+                    'excerpt' => $post->excerpt,
+                    'published_at' => $post->published_at,
+                    'featured_image_url' => $post->featured_image_url,
+                    'content_html' => $post->content,
+                    'sources' => $post->sources,
+                    'category' => $post->category
+                        ? [
+                            'name' => $post->category->name,
+                            'slug' => $post->category->slug,
+                        ]
+                        : null,
+                    'tags' => $post->tags->map(fn ($tag) => [
+                        'id' => $tag->id,
+                        'name' => $tag->name,
+                        'slug' => $tag->slug,
+                    ])->values(),
+                    'seo' => [
                     'url' => $postUrl,
                     'canonical_url' => $canonical,
                     'robots' => $robots,
@@ -234,7 +267,16 @@ class PostController extends Controller
             ->published()
             ->with(['category:id,name,slug'])
             ->orderByDesc('published_at')
-            ->select(['id', 'title', 'slug', 'excerpt', 'content', 'published_at', 'category_id', 'featured_image_path']);
+            ->select([
+                'id',
+                'title',
+                'slug',
+                'excerpt',
+                'content',
+                'published_at',
+                'category_id',
+                'featured_image_path',
+            ]);
 
         if (!empty($usedIds)) {
             $query->whereNotIn('id', $usedIds);
@@ -256,7 +298,10 @@ class PostController extends Controller
             return null;
         }
 
-        $usedIds = array_values(array_unique([...$usedIds, ...$posts->pluck('id')->all()]));
+        $usedIds = array_values(array_unique([
+            ...$usedIds,
+            ...$posts->pluck('id')->all(),
+        ]));
 
         return [
             'title' => $this->resolveSectionTitle($section),

@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import FrontLayout from '@/layouts/FrontLayout.vue';
+import LeadSlotRenderer from '@/components/public/lead/LeadSlotRenderer.vue';
 
 type CategoryDto = {
     name: string;
@@ -260,6 +261,11 @@ const badgeClasses = (category?: CategoryDto | null) => {
                                 </Link>
                             </div>
                         </section>
+
+                        <LeadSlotRenderer
+                            v-if="blockIndex === 1"
+                            slot-key="blog_index_mid_lead"
+                        />
 
                         <section
                             v-if="blockIndex === 1 && hasClusterSection"

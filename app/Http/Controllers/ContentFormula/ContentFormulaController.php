@@ -4,11 +4,13 @@ namespace App\Http\Controllers\ContentFormula;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ContentFormula\GenerateContentFormulaRequest;
+use App\Services\ContentFormula\ContentFormulaEventLogger;
 use App\Services\ContentFormula\ContentFormulaGenerator;
 use App\Services\ContentFormula\ContentFormulaRules;
 use App\Services\ContentFormula\ContentFormulaSessionService;
 use App\Services\ContentFormula\ContentFormulaTierResolver;
 use Illuminate\Http\JsonResponse;
+use Throwable;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -17,6 +19,7 @@ class ContentFormulaController extends Controller
 {
     public function __construct(
         protected ContentFormulaGenerator $generator,
+        protected ContentFormulaEventLogger $events,
         protected ContentFormulaRules $rules,
         protected ContentFormulaTierResolver $tiers,
         protected ContentFormulaSessionService $sessions,
@@ -25,6 +28,10 @@ class ContentFormulaController extends Controller
 
     public function index(): Response
     {
+        $this->events->info('generator_access_granted', request(), [
+            'action_type' => 'index',
+        ]);
+
         return Inertia::render('ContentFormula/Index', [
             'config' => $this->frontendConfig(),
         ]);
@@ -32,36 +39,134 @@ class ContentFormulaController extends Controller
 
     public function generate(GenerateContentFormulaRequest $request): JsonResponse
     {
+        $startedAt = microtime(true);
         $payload = $request->normalized();
-        $tier = $this->tiers->resolve($request->user());
         $action = $payload['action'];
+        $stage = 'resolve_tier';
+        $session = null;
+        $settings = [];
+        $tier = [];
 
-        if ($action === 'continue') {
-            $session = $this->sessions->get((string) $payload['session_id']);
-            if (!$session) {
-                throw ValidationException::withMessages([
-                    'session_id' => 'The selected generation session is no longer available. Start a fresh generation.',
-                ]);
-            }
-            $settings = (array) ($session['settings'] ?? []);
-        } else {
-            $settings = $this->buildSettings($payload, $tier);
-            $session = $this->sessions->create($settings, $tier);
+        try {
+            $tier = $this->tiers->resolve($request->user());
 
-            if ($action === 'reset' && $payload['session_id']) {
-                $previous = $this->sessions->get((string) $payload['session_id']);
-                $session['reset_count'] = (int) (($previous['reset_count'] ?? 0) + 1);
+            $baseContext = $this->eventContext($payload, $action, $tier, [
+                'route_name' => $request->route()?->getName(),
+            ]);
+
+            $this->events->info('generator_access_granted', $request, $baseContext);
+            $this->events->info($this->startedEventFor($action), $request, $baseContext);
+
+            if ($action === 'continue') {
+                $stage = 'load_session';
+
+                try {
+                    $session = $this->sessions->get((string) $payload['session_id']);
+                } catch (Throwable $exception) {
+                    $this->logFailure($request, 'generator_failure_session_read', $payload, $action, $tier, $stage, $exception);
+
+                    throw $exception;
+                }
+
+                if (!$session) {
+                    $this->events->warning('generator_rejected_stale_session', $request, $baseContext);
+
+                    throw ValidationException::withMessages([
+                        'session_id' => 'The selected generation session is no longer available. Start a fresh generation.',
+                    ]);
+                }
+
+                if (!isset($session['id']) || !is_array($session['settings'] ?? null)) {
+                    $this->events->error('generator_failure_malformed_state', $request, $this->eventContext($payload, $action, $tier, [
+                        'session_id' => (string) ($payload['session_id'] ?? ''),
+                        'generator_stage' => $stage,
+                    ]));
+
+                    throw ValidationException::withMessages([
+                        'session_id' => 'The selected generation session is no longer available. Start a fresh generation.',
+                    ]);
+                }
+
+                $settings = (array) $session['settings'];
+            } else {
+                $settings = $this->buildSettings($payload, $tier);
+                $stage = 'persist_session';
+
+                try {
+                    $session = $this->sessions->create($settings, $tier);
+                } catch (Throwable $exception) {
+                    $this->logFailure($request, 'generator_failure_session_write', $payload, $action, $tier, $stage, $exception);
+
+                    throw $exception;
+                }
+
+                if ($action === 'reset' && $payload['session_id']) {
+                    $stage = 'load_session';
+
+                    try {
+                        $previous = $this->sessions->get((string) $payload['session_id']);
+                    } catch (Throwable $exception) {
+                        $this->logFailure($request, 'generator_failure_session_read', $payload, $action, $tier, $stage, $exception);
+
+                        throw $exception;
+                    }
+
+                    if ($previous) {
+                        $session['reset_count'] = (int) (($previous['reset_count'] ?? 0) + 1);
+                    }
+                }
             }
+
+            $stage = 'generate_batch';
+            $result = $this->generator->generateBatch($settings, $session);
+            $updatedSession = array_merge($session, $result['session']);
+
+            if ($action === 'continue') {
+                $updatedSession['continue_count'] = (int) (($session['continue_count'] ?? 0) + 1);
+            }
+
+            $stage = 'persist_session';
+
+            try {
+                $this->sessions->put($updatedSession);
+            } catch (Throwable $exception) {
+                $this->logFailure($request, 'generator_failure_session_write', $payload, $action, $tier, $stage, $exception, $session, $updatedSession['id'] ?? null);
+
+                throw $exception;
+            }
+        } catch (ValidationException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            $this->logFailure(
+                $request,
+                'generator_failure_exception',
+                $payload,
+                $action,
+                $tier,
+                $stage,
+                $exception,
+                $session
+            );
+
+            throw $exception;
         }
 
-        $result = $this->generator->generateBatch($settings, $session);
-        $updatedSession = array_merge($session, $result['session']);
+        $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+        $completedContext = $this->eventContext($payload, $action, $tier, [
+            'session_id' => $updatedSession['id'] ?? null,
+            'previous_session_id' => $action === 'reset' ? $payload['session_id'] : null,
+            'generated_row_count' => count($result['rows']),
+            'exhausted' => (bool) ($updatedSession['exhausted'] ?? false),
+            'continue_count' => isset($updatedSession['continue_count']) ? (int) $updatedSession['continue_count'] : null,
+            'reset_count' => isset($updatedSession['reset_count']) ? (int) $updatedSession['reset_count'] : null,
+            'duration_ms' => $durationMs,
+        ]);
 
-        if ($action === 'continue') {
-            $updatedSession['continue_count'] = (int) (($session['continue_count'] ?? 0) + 1);
+        $this->events->info($this->completedEventFor($action), $request, $completedContext);
+
+        if ((bool) ($updatedSession['exhausted'] ?? false)) {
+            $this->events->info('generator_generate_exhausted', $request, $completedContext);
         }
-
-        $this->sessions->put($updatedSession);
 
         return response()->json([
             'success' => true,
@@ -78,6 +183,10 @@ class ContentFormulaController extends Controller
 
     public function config(): JsonResponse
     {
+        $this->events->info('generator_config_requested', request(), [
+            'action_type' => 'config',
+        ]);
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -203,5 +312,58 @@ class ContentFormulaController extends Controller
         }
 
         return "Generated {$generatedCount} content formula rows.";
+    }
+
+    protected function eventContext(array $payload, string $action, array $tier = [], array $overrides = []): array
+    {
+        return array_merge([
+            'action_type' => $action,
+            'session_id' => $payload['session_id'] ?? null,
+            'previous_session_id' => $action === 'reset' ? ($payload['session_id'] ?? null) : null,
+            'tier' => $tier['name'] ?? null,
+            'requested_result_count' => isset($payload['result_count']) ? (int) $payload['result_count'] : null,
+            'word_min' => isset($payload['min_words']) ? (int) $payload['min_words'] : null,
+            'word_max' => isset($payload['max_words']) ? (int) $payload['max_words'] : null,
+            'selected_group_counts' => $this->events->selectedGroupCounts($payload['groups'] ?? []),
+        ], $overrides);
+    }
+
+    protected function startedEventFor(string $action): string
+    {
+        return match ($action) {
+            'continue' => 'generator_continue_started',
+            'reset' => 'generator_reset_started',
+            default => 'generator_generate_started',
+        };
+    }
+
+    protected function completedEventFor(string $action): string
+    {
+        return match ($action) {
+            'continue' => 'generator_continue_completed',
+            'reset' => 'generator_reset_completed',
+            default => 'generator_generate_completed',
+        };
+    }
+
+    protected function logFailure(
+        GenerateContentFormulaRequest $request,
+        string $event,
+        array $payload,
+        string $action,
+        array $tier,
+        string $stage,
+        Throwable $exception,
+        ?array $session = null,
+        ?string $sessionIdOverride = null,
+    ): void {
+        $this->events->error($event, $request, $this->eventContext($payload, $action, $tier, [
+            'session_id' => $sessionIdOverride ?? ($session['id'] ?? ($payload['session_id'] ?? null)),
+            'continue_count' => isset($session['continue_count']) ? (int) $session['continue_count'] : null,
+            'reset_count' => isset($session['reset_count']) ? (int) $session['reset_count'] : null,
+            'generator_stage' => $stage,
+            'exception_class' => $exception::class,
+            'safe_exception_message' => $this->events->safeExceptionMessage($exception),
+        ]));
     }
 }

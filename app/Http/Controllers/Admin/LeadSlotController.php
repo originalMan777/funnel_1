@@ -18,10 +18,20 @@ class LeadSlotController extends Controller
         'home_intro' => LeadBox::TYPE_RESOURCE,
         'home_mid' => LeadBox::TYPE_SERVICE,
         'home_bottom' => LeadBox::TYPE_OFFER,
+        'blog_index_mid_lead' => LeadBox::TYPE_OFFER,
     ];
 
-    public function index(): Response
+    private function requireLeadBoxAccess(Request $request): void
     {
+        if (! $request->user()?->canManageLeadBoxes()) {
+            abort(403);
+        }
+    }
+
+    public function index(Request $request): Response
+    {
+        $this->requireLeadBoxAccess($request);
+
         $slots = collect(array_keys(self::SLOT_TYPE_MAP))
             ->map(function (string $slotKey) {
                 $slot = LeadSlot::query()->firstOrCreate(
@@ -61,8 +71,6 @@ class LeadSlotController extends Controller
                 'title' => $box->title,
             ]);
 
-
-
         $activeOfferBoxes = LeadBox::query()
             ->where('type', LeadBox::TYPE_OFFER)
             ->where('status', LeadBox::STATUS_ACTIVE)
@@ -73,6 +81,7 @@ class LeadSlotController extends Controller
                 'internal_name' => $box->internal_name,
                 'title' => $box->title,
             ]);
+
         return Inertia::render('Admin/LeadSlots/Index', [
             'slots' => $slots,
             'activeResourceBoxes' => $activeResourceBoxes,
@@ -83,6 +92,8 @@ class LeadSlotController extends Controller
 
     public function update(Request $request, LeadSlot $leadSlot): RedirectResponse
     {
+        $this->requireLeadBoxAccess($request);
+
         abort_unless(array_key_exists($leadSlot->key, self::SLOT_TYPE_MAP), 404);
 
         $validated = $request->validate([
@@ -126,4 +137,6 @@ class LeadSlotController extends Controller
             ->back()
             ->with('success', 'Slot updated.');
     }
+
+
 }
