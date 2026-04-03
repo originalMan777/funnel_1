@@ -1,8 +1,8 @@
 <script setup>
-import { Link } from '@inertiajs/vue3';
-import FrontLayout from '@/layouts/FrontLayout.vue';
-import LeadSlotRenderer from '@/components/public/lead/LeadSlotRenderer.vue';
-import coverImage from '@/images/cover-1.png';
+import { Link } from '@inertiajs/vue3'
+import FrontLayout from '@/layouts/FrontLayout.vue'
+import LeadSlotRenderer from '@/components/public/lead/LeadSlotRenderer.vue'
+import coverImage from '@/images/cover-1.png'
 
 const featuredRows = [
     {
@@ -12,42 +12,50 @@ const featuredRows = [
             'Six quick article entry points organized as three featured category groups.',
         categories: [
             {
-                title: 'Buying',
-                links: [
-                    {
-                        title: 'Offer strategy basics',
-                        summary:
-                            'How to stay competitive without overreaching.',
-                    },
-                    {
-                        title: 'Inspection mindset',
-                        summary: 'What to expect and what actually matters.',
-                    },
-                ],
-            },
-            {
-                title: 'Selling',
-                links: [
-                    {
-                        title: 'Prep checklist',
-                        summary: 'The changes that move the needle fastest.',
-                    },
-                    {
-                        title: 'Pricing signals',
-                        summary: 'What your early showing data is telling you.',
-                    },
-                ],
-            },
-            {
                 title: 'Market',
+                href: '/blog?category=market',
                 links: [
                     {
                         title: 'Rates + demand',
                         summary: 'A simple framework for reading momentum.',
+                        href: '/blog?category=market',
                     },
                     {
                         title: 'Seasonality',
                         summary: 'Why timing shifts and how to plan around it.',
+                        href: '/blog?category=market',
+                    },
+                ],
+            },
+            {
+                title: 'Relocating',
+                href: '/blog?category=relocating',
+                links: [
+                    {
+                        title: 'Moving with a plan',
+                        summary: 'How to make relocation feel more structured.',
+                        href: '/blog?category=relocating',
+                    },
+                    {
+                        title: 'Area transition tips',
+                        summary: 'What to think through before making the move.',
+                        href: '/blog?category=relocating',
+                    },
+                ],
+            },
+            {
+                title: 'Financing',
+                href: '/blog?category=financing',
+                links: [
+                    {
+                        title: 'Pre-approval timing',
+                        summary: 'When to lock and what documents matter.',
+                        href: '/blog?category=financing',
+                    },
+                    {
+                        title: 'Closing costs',
+                        summary: 'What to budget for beyond the down payment.',
+                        href: '/blog?category=financing',
                     },
                 ],
             },
@@ -60,112 +68,147 @@ const featuredRows = [
             'Another featured row with three more categories and two article tiles in each.',
         categories: [
             {
-                title: 'Neighborhoods',
+                title: 'Neighborhood',
+                href: '/blog?category=neighborhood',
                 links: [
                     {
                         title: 'Commute tradeoffs',
                         summary: 'How to balance schools, space, and time.',
+                        href: '/blog?category=neighborhood',
                     },
                     {
                         title: 'Shortlisting',
                         summary: 'A clean way to narrow choices quickly.',
+                        href: '/blog?category=neighborhood',
                     },
                 ],
             },
             {
-                title: 'Financing',
+                title: 'Mortgages',
+                href: '/blog?category=mortgages',
                 links: [
                     {
-                        title: 'Pre-approval timing',
-                        summary: 'When to lock and what documents matter.',
+                        title: 'Mortgage timing',
+                        summary: 'What to prepare before making a move.',
+                        href: '/blog?category=mortgages',
                     },
                     {
-                        title: 'Closing costs',
-                        summary: 'What to budget for beyond the down payment.',
+                        title: 'Loan readiness',
+                        summary: 'How financing affects your next step.',
+                        href: '/blog?category=mortgages',
                     },
                 ],
             },
             {
                 title: 'Process',
+                href: '/blog?category=process',
                 links: [
                     {
                         title: 'Timeline planning',
                         summary: 'A simple way to map milestones to dates.',
+                        href: '/blog?category=process',
                     },
                     {
                         title: 'Negotiation clarity',
                         summary: 'What to push on, what to let go.',
+                        href: '/blog?category=process',
                     },
                 ],
             },
         ],
     },
-];
+]
 
 const whoWeHelpTiles = [
     {
-        title: 'First-time buyers',
-        body: 'A clearer plan for your search, offers, and next steps without the overwhelm.',
-        kicker: 'Start buying smarter',
+        title: 'Buying',
+        body: 'Clear direction for buyers who want to understand the process and move with confidence.',
+        kicker: 'View buyer strategy',
+        href: '/buyers-strategy',
     },
     {
-        title: 'Sellers',
-        body: 'Pricing, prep, positioning, and timing built around your goals and timeline.',
-        kicker: 'Sell with confidence',
+        title: 'Selling',
+        body: 'Helpful strategy for sellers preparing to position, price, and present their property well.',
+        kicker: 'View seller strategy',
+        href: '/sellers-strategy',
     },
     {
-        title: 'Investors',
-        body: 'Evaluate opportunities with sharper comps, rent math, and a more grounded strategy.',
-        kicker: 'Run the numbers',
+        title: 'Renting',
+        body: 'Useful guidance for renters who want better clarity before making their next move.',
+        kicker: 'Read renting article',
+        href: '/blog?category=renting',
     },
     {
-        title: 'Relocating clients',
-        body: 'Neighborhood guidance, commute tradeoffs, and a cleaner shortlist faster.',
-        kicker: 'Relocate with clarity',
+        title: 'Investing',
+        body: 'Practical insight for investors trying to think more clearly about market opportunities.',
+        kicker: 'Read investing article',
+        href: '/blog?category=investing',
     },
-];
+]
 
 const services = [
     {
         title: 'Consultation',
         body: 'One-on-one guidance tailored to your real estate situation, goals, and next steps.',
+        href: '/consultation',
     },
     {
-        title: 'Buyer Strategy',
+        title: 'Buyers Strategy',
         body: 'Clear direction for evaluating options, understanding the process, and moving toward the right purchase.',
+        href: '/buyers-strategy',
     },
     {
-        title: 'Seller Strategy',
+        title: 'Sellers Strategy',
         body: 'Strategic support for preparing, pricing, and positioning your property before entering the market.',
+        href: '/sellers-strategy',
     },
     {
         title: 'Market Evaluation',
         body: 'Insight into local conditions, timing, and market realities so you can move with more clarity.',
+        href: '/resources',
     },
-];
+]
 
 const whyNojoPoints = [
-    'Clear, honest guidance',
-    'Focused on your specific situation',
-    'Local market understanding',
-    'Strategy before action',
-    'No pressure — just direction you can trust',
-];
+    {
+        icon: '◔',
+        text: 'Clear, honest guidance',
+    },
+    {
+        icon: '◔',
+        text: 'Focused on your specific situation',
+    },
+    {
+        icon: '◔',
+        text: 'Local market understanding',
+    },
+    {
+        icon: '◔',
+        text: 'Strategy before action',
+    },
+    {
+        icon: '◔',
+        text: 'No pressure — just direction you can trust',
+    },
+]
 
 const insights = [
     {
-        title: 'Buying in New Jersey',
-        body: 'Helpful guidance for buyers preparing to make a move in the New Jersey market with more clarity and confidence.',
+        title: 'Buying in NJ',
+        body: 'Helpful guidance for buyers preparing to make a move in New Jersey with more clarity and confidence.',
+        href: '/buyers-strategy',
     },
     {
         title: 'Selling Tips',
         body: 'Practical advice for homeowners getting ready to position, prepare, and sell their property effectively.',
+        href: '/sellers-strategy',
     },
     {
         title: 'Market Trends',
         body: 'Stay informed about changing market conditions and what they may mean for your next real estate decision.',
+        href: '/blog?category=market-trends',
     },
-];
+]
 </script>
 
 <template>
@@ -241,10 +284,11 @@ const insights = [
                 <div
                     class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4"
                 >
-                    <div
+                    <Link
                         v-for="tile in whoWeHelpTiles"
                         :key="tile.title"
-                        class="flex aspect-[10/11] flex-col justify-between rounded-3xl bg-white p-7 shadow-sm ring-1 ring-black/5"
+                        :href="tile.href"
+                        class="flex aspect-[10/11] flex-col justify-between rounded-3xl bg-white p-7 shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-md"
                     >
                         <div class="space-y-3">
                             <h3
@@ -259,7 +303,7 @@ const insights = [
                         <div class="pt-6 text-sm font-medium text-gray-900">
                             {{ tile.kicker }}
                         </div>
-                    </div>
+                    </Link>
                 </div>
             </section>
 
@@ -295,22 +339,21 @@ const insights = [
                                 {{ category.title }}
                             </h3>
                             <Link
-                                href="/blog"
+                                :href="category.href"
                                 class="text-xs font-semibold text-gray-500 hover:text-gray-900"
-                                >View</Link
                             >
+                                View
+                            </Link>
                         </div>
 
                         <div class="space-y-3">
                             <Link
                                 v-for="article in category.links"
                                 :key="article.title"
-                                href="/blog"
+                                :href="article.href"
                                 class="block rounded-2xl bg-stone-50 p-4 ring-1 ring-black/5 transition hover:bg-stone-100"
                             >
-                                <div
-                                    class="text-sm font-semibold text-gray-900"
-                                >
+                                <div class="text-sm font-semibold text-gray-900">
                                     {{ article.title }}
                                 </div>
                                 <div class="mt-1 text-xs text-gray-600">
@@ -351,10 +394,11 @@ const insights = [
                     </div>
 
                     <div class="grid gap-5 md:grid-cols-2">
-                        <div
+                        <Link
                             v-for="service in services"
                             :key="service.title"
-                            class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-black/5"
+                            :href="service.href"
+                            class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-md"
                         >
                             <h3 class="text-lg font-semibold text-gray-900">
                                 {{ service.title }}
@@ -364,7 +408,7 @@ const insights = [
                             >
                                 {{ service.body }}
                             </p>
-                        </div>
+                        </Link>
                     </div>
                 </div>
             </section>
@@ -392,15 +436,28 @@ const insights = [
                     </p>
                 </div>
 
-                <div class="mx-auto max-w-5xl space-y-4">
+                <div class="mx-auto max-w-5xl">
                     <div
-                        v-for="point in whyNojoPoints"
-                        :key="point"
-                        class="rounded-2xl bg-white px-6 py-5 shadow-sm ring-1 ring-black/5 transition hover:shadow-md"
+                        class="rounded-3xl bg-white px-6 py-8 shadow-sm ring-1 ring-black/5 md:px-8"
                     >
-                        <p class="text-base font-medium text-gray-900">
-                            {{ point }}
-                        </p>
+                        <div class="space-y-4">
+                            <div
+                                v-for="point in whyNojoPoints"
+                                :key="point.text"
+                                class="flex items-start gap-4"
+                            >
+                                <span
+                                    class="mt-0.5 text-base text-gray-400/70"
+                                    aria-hidden="true"
+                                >
+                                    {{ point.icon }}
+                                </span>
+
+                                <p class="text-base font-medium text-gray-900">
+                                    {{ point.text }}
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -437,22 +494,21 @@ const insights = [
                                 {{ category.title }}
                             </h3>
                             <Link
-                                href="/blog"
+                                :href="category.href"
                                 class="text-xs font-semibold text-gray-500 hover:text-gray-900"
-                                >View</Link
                             >
+                                View
+                            </Link>
                         </div>
 
                         <div class="space-y-3">
                             <Link
                                 v-for="article in category.links"
                                 :key="article.title"
-                                href="/blog"
+                                :href="article.href"
                                 class="block rounded-2xl bg-stone-50 p-4 ring-1 ring-black/5 transition hover:bg-stone-100"
                             >
-                                <div
-                                    class="text-sm font-semibold text-gray-900"
-                                >
+                                <div class="text-sm font-semibold text-gray-900">
                                     {{ article.title }}
                                 </div>
                                 <div class="mt-1 text-xs text-gray-600">
@@ -490,10 +546,11 @@ const insights = [
                 </div>
 
                 <div class="mx-auto grid max-w-6xl gap-6 md:grid-cols-3">
-                    <div
+                    <Link
                         v-for="item in insights"
                         :key="item.title"
-                        class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-black/5 transition hover:shadow-md"
+                        :href="item.href"
+                        class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-md"
                     >
                         <h3
                             class="mb-3 text-xl font-semibold tracking-tight text-gray-900"
@@ -503,7 +560,7 @@ const insights = [
                         <p class="leading-relaxed text-gray-600">
                             {{ item.body }}
                         </p>
-                    </div>
+                    </Link>
                 </div>
             </section>
         </div>

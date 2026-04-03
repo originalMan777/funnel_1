@@ -27,7 +27,7 @@ const props = withDefaults(
     }>(),
     {
         selectedPath: null,
-        defaultFolder: '__root__',
+        defaultFolder: 'blog',
     },
 );
 
@@ -61,10 +61,40 @@ const currentPage = ref(1);
 const lastPage = ref(1);
 const total = ref(0);
 
+const normalizeComparablePath = (value: string | null | undefined) => {
+    const trimmed = (value ?? '').trim();
+    if (!trimmed) return '';
+
+    try {
+        const url = new URL(trimmed, window.location.origin);
+        return url.pathname.replace(/\/+$/, '');
+    } catch {
+        return trimmed.replace(/^https?:\/\/[^/]+/i, '').replace(/\/+$/, '');
+    }
+};
+
 const selectedItem = computed<MediaItem | null>(() => {
     if (!props.selectedPath) return null;
-    return items.value.find((item) => item.path === props.selectedPath) ?? null;
+
+    const selected = normalizeComparablePath(props.selectedPath);
+
+    return (
+        items.value.find((item) => {
+            const itemPath = normalizeComparablePath(item.path);
+            const itemUrl = normalizeComparablePath(item.url);
+
+            return selected === itemPath || selected === itemUrl;
+        }) ?? null
+    );
 });
+
+const isSelected = (item: MediaItem) => {
+    const selected = normalizeComparablePath(props.selectedPath);
+    const itemPath = normalizeComparablePath(item.path);
+    const itemUrl = normalizeComparablePath(item.url);
+
+    return selected !== '' && (selected === itemPath || selected === itemUrl);
+};
 
 const previewItem = ref<MediaItem | null>(null);
 const uploadInputRef = ref<HTMLInputElement | null>(null);
@@ -714,7 +744,7 @@ watch(perPage, () => {
                                                 type="button"
                                                 class="relative h-full w-full"
                                                 :title="item.filename"
-                                                @click="openPreview(item)"
+                                                @click="selectItem(item)"
                                             >
                                                 <img
                                                     :src="item.url"
@@ -736,9 +766,7 @@ watch(perPage, () => {
                                             </button>
 
                                             <div
-                                                v-if="
-                                                    selectedPath === item.path
-                                                "
+                                                v-if="isSelected(item)"
                                                 class="pointer-events-none absolute inset-0 ring-2 ring-indigo-500"
                                             />
                                         </div>

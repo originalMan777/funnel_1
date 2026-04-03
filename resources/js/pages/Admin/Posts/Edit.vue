@@ -226,6 +226,41 @@ const form = useForm({
     remove_featured_image: false,
 });
 
+const syncFormWithSavedPost = (savedPost: PostDto | null | undefined) => {
+    if (!savedPost) return;
+
+    form.title = savedPost.title ?? '';
+    form.slug = savedPost.slug ?? '';
+    form.excerpt = savedPost.excerpt ?? '';
+    form.content = savedPost.content ?? '';
+    form.sources = savedPost.sources ?? '';
+    form.category_id = savedPost.category_id ?? null;
+    form.tag_ids = [...(savedPost.tag_ids ?? [])];
+    form.meta_title = savedPost.meta_title ?? '';
+    form.meta_description = savedPost.meta_description ?? '';
+    form.canonical_url = savedPost.canonical_url ?? '';
+    form.og_title = savedPost.og_title ?? '';
+    form.og_description = savedPost.og_description ?? '';
+    form.og_image_path = savedPost.og_image_path ?? '';
+    form.noindex = !!savedPost.noindex;
+    form.is_featured = !!savedPost.is_featured;
+    form.featured_image = null;
+    form.featured_image_path = savedPost.featured_image_path ?? savedPost.featured_image_url ?? '';
+    form.remove_featured_image = false;
+    form.new_category = '';
+    form.new_tags = [];
+
+    if (featuredImageInputRef.value) {
+        featuredImageInputRef.value.value = '';
+    }
+
+    setPreview(null);
+
+    if (quillEditorRef.value && quillEditorRef.value.root.innerHTML !== form.content) {
+        quillEditorRef.value.root.innerHTML = form.content;
+    }
+};
+
 const displayTitle = computed(() => form.title?.trim() || 'New Post');
 
 const quillEditorRef = ref<Quill | null>(null);
@@ -565,6 +600,25 @@ const save = () => {
     form.put(route('admin.posts.update', props.post.id), {
         forceFormData: true,
         preserveScroll: true,
+        onSuccess: (page) => {
+            const savedPost = page.props?.post as PostDto | undefined;
+            const savedCategories = page.props?.categories as OptionRow[] | undefined;
+            const savedTags = page.props?.tags as OptionRow[] | undefined;
+
+            if (Array.isArray(savedCategories)) {
+                categoriesOptions.value = [...savedCategories];
+            }
+
+            if (Array.isArray(savedTags)) {
+                tagsOptions.value = [...savedTags];
+            }
+
+            syncFormWithSavedPost(savedPost);
+
+            nextTick(() => {
+                captureBaselineState();
+            });
+        },
     });
 };
 

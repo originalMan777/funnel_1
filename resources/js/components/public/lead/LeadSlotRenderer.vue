@@ -17,10 +17,7 @@ const model = computed<LeadBlockRenderModel | null>(() => {
 </script>
 
 <template>
-    <div v-if="model" class="relative left-1/2 w-screen -translate-x-1/2">
-        <!-- Align lead blocks to the same outer width/padding as the hero -->
-        <div class="mx-auto max-w-7xl px-6 md:px-10">
-            <LeadBlockRenderer :model="model" />
-        </div>
+    <div v-if="model" class="w-full">
+        <LeadBlockRenderer :model="model" />
     </div>
 </template>

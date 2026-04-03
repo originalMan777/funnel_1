@@ -19,6 +19,14 @@ use App\Http\Controllers\Public\PostController as PublicPostController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
+Route::get('/buyers-strategy', function () {
+    return Inertia::render('BuyersStrategy');
+})->name('buyers.strategy');
+
+Route::get('/sellers-strategy', function () {
+    return Inertia::render('SellersStrategy');
+})->name('sellers.strategy');
+
 Route::get('/consultation', function () {
     return Inertia::render('Consultation');
 })->name('consultation');
@@ -100,14 +108,6 @@ Route::get('/services', function () {
 Route::get('/resources', function () {
     return Inertia::render('Resources');
 })->name('resources');
-
-Route::get('/buyers', function () {
-    return Inertia::render('Buyers');
-})->name('buyers');
-
-Route::get('/sellers', function () {
-    return Inertia::render('Sellers');
-})->name('sellers');
 
 Route::get('/blog', [PublicPostController::class, 'index'])->name('blog.index');
 Route::get('/blog/category/{slug}', [PublicPostController::class, 'category'])->name('blog.category');

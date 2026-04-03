@@ -76,9 +76,9 @@ const closeForm = () => {
             ></div>
         </div>
 
-        <div
-            class="relative z-10 grid gap-8 md:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] md:items-center"
-        >
+       <div
+  class="relative z-10 grid gap-6 md:grid-cols-2 md:items-center"
+>
             <div class="space-y-6">
                 <div class="space-y-3">
                     <p

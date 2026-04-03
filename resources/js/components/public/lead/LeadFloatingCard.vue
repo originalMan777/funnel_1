@@ -1,22 +1,36 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+
 const props = defineProps<{
     previewMode?: boolean;
     surfaceClass?: string;
+    contained?: boolean;
 }>();
+
+const floatClass = computed(() =>
+    props.contained ? 'lead-float lead-float-contained' : 'lead-float'
+);
+
+const surfaceClassName = computed(() =>
+    props.contained ? 'lead-surface lead-surface-contained' : 'lead-surface'
+);
 </script>
 
 <template>
-    <div class="lead-float">
-        <!-- Break out of narrower page containers; align to hero width -->
-        <div class="lead-breakout">
-            <div class="lead-container">
-                <div class="lead-shadow" aria-hidden="true"></div>
+    <div :class="floatClass">
+        <div class="lead-container">
+            <div
+                v-if="!props.contained"
+                class="lead-shadow"
+                aria-hidden="true"
+            ></div>
 
-                <div class="lead-surface" :class="props.surfaceClass">
-                    <div class="lead-top-edge" aria-hidden="true"></div>
-                    <slot />
-                </div>
+            <div :class="[surfaceClassName, props.surfaceClass]">
+                <div class="lead-top-edge" aria-hidden="true"></div>
+                <slot />
+            </div>
 
+            <template v-if="!props.contained">
                 <div
                     class="lead-badge lead-badge-left"
                     aria-hidden="true"
@@ -25,7 +39,7 @@ const props = defineProps<{
                     class="lead-badge lead-badge-right"
                     aria-hidden="true"
                 ></div>
-            </div>
+            </template>
         </div>
     </div>
 </template>
@@ -33,35 +47,24 @@ const props = defineProps<{
 <style scoped>
 .lead-float {
     position: relative;
+    width: 100%;
     overflow: visible;
 }
 
-/* Full-bleed breakout wrapper so lead blocks can use hero width consistently */
-.lead-breakout {
-    margin-left: calc(50% - 50vw);
-    margin-right: calc(50% - 50vw);
+.lead-float-contained {
+    overflow: hidden;
 }
 
 .lead-container {
     position: relative;
     width: 100%;
-    max-width: 80rem; /* max-w-7xl */
-    margin: 0 auto;
-    padding-left: 1.5rem; /* px-6 */
-    padding-right: 1.5rem;
-}
-
-@media (min-width: 768px) {
-    .lead-container {
-        padding-left: 2.5rem; /* md:px-10 */
-        padding-right: 2.5rem;
-    }
+    max-width: 100%;
 }
 
 .lead-shadow {
     position: absolute;
     inset: 0;
-    border-radius: 1.5rem; /* rounded-3xl */
+    border-radius: 1.5rem;
     background: rgba(15, 23, 42, 0.22);
     filter: blur(30px);
     transform: translate3d(14px, 18px, 0) scale(0.98);
@@ -72,9 +75,14 @@ const props = defineProps<{
 .lead-surface {
     position: relative;
     z-index: 1;
-    border-radius: 1.5rem; /* rounded-3xl */
+    width: 100%;
+    border-radius: 1.5rem;
     background: rgba(255, 255, 255, 0.96);
     overflow: hidden;
+}
+
+.lead-surface-contained {
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
 }
 
 .lead-top-edge {

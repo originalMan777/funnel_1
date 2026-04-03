@@ -246,6 +246,20 @@ const formatDate = (value: string | null) => {
                     </div>
 
                     <div class="flex items-center gap-2 text-sm text-gray-500">
+                        <select
+                            v-model="folder"
+                            class="rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            @change="applyFilters(true)"
+                        >
+                            <option
+                                v-for="option in folders"
+                                :key="option.value"
+                                :value="option.value"
+                            >
+                                {{ option.label }}
+                            </option>
+                        </select>
+
                         <span>{{ formattedRange }}</span>
                     </div>
                 </div>

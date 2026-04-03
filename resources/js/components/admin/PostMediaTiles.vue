@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 
 type FolderOption = {
     value: string;
@@ -40,6 +40,27 @@ const items = ref<MediaItem[]>([]);
 const activeFolder = ref('');
 const availableFolders = ref<FolderOption[]>([]);
 
+const normalizeComparablePath = (value: string | null | undefined) => {
+    const trimmed = (value ?? '').trim();
+
+    if (!trimmed) return '';
+
+    try {
+        const url = new URL(trimmed, window.location.origin);
+        return url.pathname.replace(/\/+$/, '');
+    } catch {
+        return trimmed.replace(/^https?:\/\/[^/]+/i, '').replace(/\/+$/, '');
+    }
+};
+
+const isSelected = (item: MediaItem) => {
+    const selected = normalizeComparablePath(props.selectedPath);
+    const itemPath = normalizeComparablePath(item.path);
+    const itemUrl = normalizeComparablePath(item.url);
+
+    return selected !== '' && (selected === itemPath || selected === itemUrl);
+};
+
 const fetchFolder = async (folder: string) => {
     const params = new URLSearchParams({
         folder,
@@ -65,12 +86,14 @@ const fetchFolder = async (folder: string) => {
     return payload;
 };
 
-const loadTiles = async () => {
+const loadTiles = async (requestedFolder?: string) => {
     loading.value = true;
     errorMessage.value = '';
 
     try {
-        const initialPayload = await fetchFolder(props.preferredFolders[0] || '__root__');
+        const initialFolder = requestedFolder || activeFolder.value || props.preferredFolders[0] || '__root__';
+        const initialPayload = await fetchFolder(initialFolder);
+
         availableFolders.value = initialPayload.folders || [];
 
         const knownFolders = availableFolders.value.map((option) => option.value);
@@ -79,7 +102,7 @@ const loadTiles = async () => {
         );
 
         let chosenItems = initialPayload.media?.data || [];
-        let chosenFolder = initialPayload.filters?.folder || props.preferredFolders[0] || '__root__';
+        let chosenFolder = initialPayload.filters?.folder || initialFolder;
 
         if (chosenItems.length === 0) {
             for (const folder of preferredOrder) {
@@ -106,6 +129,15 @@ const loadTiles = async () => {
     }
 };
 
+const selectItem = (item: MediaItem) => {
+    emit('select', item.path);
+};
+
+watch(activeFolder, (folder, previous) => {
+    if (!folder || folder === previous) return;
+    loadTiles(folder);
+});
+
 onMounted(() => {
     loadTiles();
 });
@@ -124,14 +156,34 @@ onMounted(() => {
             <button
                 type="button"
                 class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                @click="loadTiles"
+                @click="loadTiles(activeFolder)"
             >
                 Refresh
             </button>
         </div>
 
-        <div class="mt-3 text-xs text-gray-500">
-            Folder: <span class="font-medium text-gray-700">{{ activeFolder || 'Loading…' }}</span>
+        <div class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="text-xs text-gray-500">
+                Folder:
+                <span class="font-medium text-gray-700">
+                    {{ activeFolder || 'Loading…' }}
+                </span>
+            </div>
+
+            <div v-if="availableFolders.length" class="w-full sm:w-56">
+                <select
+                    v-model="activeFolder"
+                    class="block w-full rounded-md border-gray-300 py-1.5 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                >
+                    <option
+                        v-for="option in availableFolders"
+                        :key="option.value"
+                        :value="option.value"
+                    >
+                        {{ option.label }}
+                    </option>
+                </select>
+            </div>
         </div>
 
         <div
@@ -164,9 +216,9 @@ onMounted(() => {
                 :key="item.path"
                 type="button"
                 class="group relative aspect-square overflow-hidden rounded-lg bg-white ring-1 ring-black/5 transition hover:ring-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                :class="selectedPath === item.path ? 'ring-2 ring-indigo-500' : ''"
+                :class="isSelected(item) ? 'ring-2 ring-indigo-500' : ''"
                 :title="item.filename"
-                @click="emit('select', item.path)"
+                @click="selectItem(item)"
             >
                 <img
                     :src="item.url"
@@ -175,6 +227,15 @@ onMounted(() => {
                     loading="lazy"
                     decoding="async"
                 />
+
+                <div
+                    v-if="isSelected(item)"
+                    class="pointer-events-none absolute inset-0 ring-2 ring-indigo-500"
+                >
+                    <div class="absolute right-1 top-1 rounded-full bg-indigo-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                        Selected
+                    </div>
+                </div>
 
                 <div
                     class="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1 opacity-0 transition group-hover:opacity-100"

@@ -2,7 +2,16 @@
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AdminLayout from '@/AppLayouts/AdminLayout.vue';
 
-type SlotKey = 'home_intro' | 'home_mid' | 'home_bottom';
+type SlotKey =
+    | 'home_intro'
+    | 'home_mid'
+    | 'home_bottom'
+    | 'blog_index_mid_lead'
+    | 'blog_post_inline_1'
+    | 'blog_post_inline_2'
+    | 'blog_post_inline_3'
+    | 'blog_post_inline_4'
+    | 'blog_post_before_related';
 
 type SlotPayload = {
     id: number;
@@ -16,20 +25,13 @@ type LeadBoxOption = {
     id: number;
     internal_name: string;
     title: string;
+    type: 'resource' | 'service' | 'offer';
 };
 
 const props = defineProps<{
     slots: SlotPayload[];
-    activeResourceBoxes: LeadBoxOption[];
-    activeServiceBoxes: LeadBoxOption[];
-    activeOfferBoxes: LeadBoxOption[];
+    activeLeadBoxes: LeadBoxOption[];
 }>();
-
-const optionsFor = (slot: SlotPayload) => {
-    if (slot.required_type === 'service') return props.activeServiceBoxes;
-    if (slot.required_type === 'offer') return props.activeOfferBoxes;
-    return props.activeResourceBoxes;
-};
 
 const forms = props.slots.map((slot) =>
     useForm({
@@ -42,13 +44,19 @@ const slotLabel = (key: SlotKey) => {
     if (key === 'home_intro') return 'Home (intro)';
     if (key === 'home_mid') return 'Home (mid)';
     if (key === 'home_bottom') return 'Home (bottom)';
+    if (key === 'blog_index_mid_lead') return 'Blog index (mid)';
+    if (key === 'blog_post_inline_1') return 'Blog post inline 1';
+    if (key === 'blog_post_inline_2') return 'Blog post inline 2';
+    if (key === 'blog_post_inline_3') return 'Blog post inline 3';
+    if (key === 'blog_post_inline_4') return 'Blog post inline 4';
+    if (key === 'blog_post_before_related') return 'Blog post before related';
     return key;
 };
 
-const selectedLabel = (slot: SlotPayload, formIndex: number) => {
+const selectedLabel = (formIndex: number) => {
     const form = forms[formIndex];
     if (!form.lead_box_id) return '— Unassigned —';
-    const found = optionsFor(slot).find((b) => b.id === form.lead_box_id);
+    const found = props.activeLeadBoxes.find((b) => b.id === form.lead_box_id);
     return found ? `${found.internal_name} — ${found.title}` : 'Selected';
 };
 
@@ -75,11 +83,7 @@ const submit = (slot: SlotPayload, formIndex: number) => {
                                 Lead Slot Assignment
                             </h1>
                             <p class="mt-2 max-w-3xl text-sm leading-relaxed text-gray-600">
-                                This pass supports three fixed homepage slots:
-                                <span class="font-semibold text-gray-900">home_intro</span> (Resource),
-                                <span class="font-semibold text-gray-900">home_mid</span> (Service), and
-                                <span class="font-semibold text-gray-900">home_bottom</span> (Offer).
-                                Enable/disable each slot and assign an Active Lead Box of the required type.
+                                Assign any Active Lead Box to any slot. Lead Boxes can be reused across multiple slots.
                             </p>
                         </div>
 
@@ -109,10 +113,6 @@ const submit = (slot: SlotPayload, formIndex: number) => {
                                     <h2 class="mt-2 text-xl font-semibold tracking-tight text-gray-900">
                                         {{ slot.key }}
                                     </h2>
-                                    <p class="mt-2 text-sm text-gray-600">
-                                        Required type:
-                                        <span class="font-semibold text-gray-900">{{ slot.required_type }}</span>
-                                    </p>
                                 </div>
 
                                 <button
@@ -159,21 +159,21 @@ const submit = (slot: SlotPayload, formIndex: number) => {
                                         class="mt-3 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900"
                                     >
                                         <option :value="null">— Unassigned —</option>
-                                        <option v-for="box in optionsFor(slot)" :key="box.id" :value="box.id">
-                                            {{ box.internal_name }} — {{ box.title }}
+                                        <option v-for="box in props.activeLeadBoxes" :key="box.id" :value="box.id">
+                                            {{ box.internal_name }} — {{ box.title }} ({{ box.type }})
                                         </option>
                                     </select>
 
                                     <p class="mt-3 text-sm text-gray-600">
-                                        Selected: <span class="font-semibold text-gray-900">{{ selectedLabel(slot, idx) }}</span>
+                                        Selected: <span class="font-semibold text-gray-900">{{ selectedLabel(idx) }}</span>
                                     </p>
 
                                     <p v-if="forms[idx].errors.lead_box_id" class="mt-3 text-xs text-red-600">
                                         {{ forms[idx].errors.lead_box_id }}
                                     </p>
 
-                                    <p v-if="!optionsFor(slot).length" class="mt-3 text-sm text-gray-600">
-                                        No Active {{ slot.required_type }} Lead Boxes yet.
+                                    <p v-if="!props.activeLeadBoxes.length" class="mt-3 text-sm text-gray-600">
+                                        No Active Lead Boxes yet.
                                     </p>
                                 </div>
                             </div>

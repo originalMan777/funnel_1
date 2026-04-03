@@ -95,6 +95,7 @@ class MediaLibraryController extends Controller
             ]);
         }
 
+        $imagesRoot = $this->imagesRoot();
         $targetDir = $this->folderPath($folder);
 
         if (!File::isDirectory($targetDir)) {
@@ -123,7 +124,10 @@ class MediaLibraryController extends Controller
             $generatedBase
         );
 
-        $absolutePath = public_path(ltrim($publicPath, '/'));
+        $absolutePath = $targetDir . DIRECTORY_SEPARATOR . basename($publicPath);
+        if (!File::exists($absolutePath)) {
+            abort(500, 'Uploaded file not found after processing.');
+        }
         $filename = basename($absolutePath);
 
         $this->securityAuditLogger->log(
@@ -154,81 +158,80 @@ class MediaLibraryController extends Controller
         ]);
     }
 
-    public function destroy(Request $request)
-    {
-        $this->requireMediaAccess($request);
+   public function destroy(Request $request)
+{
+    $this->requireMediaAccess($request);
 
-        $validated = $request->validate([
-            'path' => ['required', 'string', 'max:2048'],
-        ]);
+    $validated = $request->validate([
+        'path' => ['required', 'string', 'max:2048'],
+    ]);
 
-        $publicPath = (string) $validated['path'];
+    $publicPath = (string) $validated['path'];
 
-        if (!Str::startsWith($publicPath, '/images/')) {
-            return response()->json([
-                'message' => 'Only files inside /images can be deleted.',
-            ], 422);
-        }
-
-        $imagesRoot = $this->imagesRoot();
-        $relativePath = ltrim(Str::after($publicPath, '/images/'), '/');
-
-        if ($relativePath === '') {
-            return response()->json([
-                'message' => 'Invalid file path.',
-            ], 422);
-        }
-
-        $absolutePath = $imagesRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
-
-        $realImagesRoot = realpath($imagesRoot);
-        $realTargetDir = realpath(dirname($absolutePath));
-
-        if ($realImagesRoot === false || $realTargetDir === false || !Str::startsWith($realTargetDir, $realImagesRoot)) {
-            return response()->json([
-                'message' => 'Invalid file path.',
-            ], 422);
-        }
-
-        if (!File::exists($absolutePath) || !File::isFile($absolutePath)) {
-            return response()->json([
-                'message' => 'File not found.',
-            ], 404);
-        }
-
-        $pathVariants = $this->pathVariantsForLookup($publicPath);
-
-        $inUse = Post::query()
-            ->where(function ($query) use ($pathVariants) {
-                $query->whereIn('featured_image_path', $pathVariants)
-                    ->orWhereIn('og_image_path', $pathVariants);
-            })
-            ->exists();
-
-        if ($inUse) {
-            return response()->json([
-                'message' => 'This image is still being used by a post.',
-            ], 422);
-        }
-
-        File::delete($absolutePath);
-
-        $this->securityAuditLogger->log(
-            event: 'media_deleted',
-            request: $request,
-            userId: (int) optional($request->user())->id,
-            entityType: 'media',
-            entityId: null,
-            context: [
-                'path' => $publicPath,
-            ]
-        );
-
+    if (!Str::startsWith($publicPath, '/images/')) {
         return response()->json([
-            'message' => 'Image deleted.',
-        ]);
+            'message' => 'Only files inside /images can be deleted.',
+        ], 422);
     }
 
+    $imagesRoot = $this->imagesRoot();
+    $relativePath = ltrim(Str::after($publicPath, '/images/'), '/');
+
+    if ($relativePath === '') {
+        return response()->json([
+            'message' => 'Invalid file path.',
+        ], 422);
+    }
+
+    $absolutePath = $imagesRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+
+    $realImagesRoot = realpath($imagesRoot) ?: $imagesRoot;
+    $realAbsolutePath = realpath($absolutePath) ?: $absolutePath;
+
+    if (!Str::startsWith($realAbsolutePath, $realImagesRoot)) {
+        return response()->json([
+            'message' => 'Invalid file path.',
+        ], 422);
+    }
+
+    $pathVariants = $this->pathVariantsForLookup($publicPath);
+
+    $inUse = Post::query()
+        ->where(function ($query) use ($pathVariants) {
+            $query->whereIn('featured_image_path', $pathVariants)
+                ->orWhereIn('og_image_path', $pathVariants);
+        })
+        ->exists();
+
+    if ($inUse) {
+        return response()->json([
+            'message' => 'This image is still being used by a post.',
+        ], 422);
+    }
+
+    if (!File::exists($absolutePath) || !File::isFile($absolutePath)) {
+        return response()->json([
+            'message' => 'File not found.',
+        ], 404);
+    }
+
+    File::delete($absolutePath);
+
+    $this->securityAuditLogger->log(
+        event: 'media_deleted',
+        request: $request,
+        userId: (int) optional($request->user())->id,
+        entityType: 'media',
+        entityId: null,
+        context: [
+            'path' => $publicPath,
+        ]
+    );
+
+    return response()->json([
+        'message' => 'Image deleted.',
+    ]);
+}
     private function buildIndexPayload(Request $request): array
     {
         $folder = trim((string) $request->query('folder', 'blog'), '/');
@@ -330,15 +333,15 @@ class MediaLibraryController extends Controller
     }
 
     private function imagesRoot(): string
-    {
-        $imagesRoot = public_path('images');
+{
+    $imagesRoot = config('media.images_root', public_path('images'));
 
-        if (!File::isDirectory($imagesRoot)) {
-            File::makeDirectory($imagesRoot, 0755, true);
-        }
-
-        return $imagesRoot;
+    if (!File::isDirectory($imagesRoot)) {
+        File::makeDirectory($imagesRoot, 0755, true);
     }
+
+    return $imagesRoot;
+}
 
     private function folderOptions()
     {
@@ -375,16 +378,14 @@ class MediaLibraryController extends Controller
             ->all();
     }
 
-    private function folderPath(string $folder): string
-    {
-        $imagesRoot = $this->imagesRoot();
-
-        if ($folder === '__root__') {
-            return $imagesRoot;
-        }
-
-        return $imagesRoot . DIRECTORY_SEPARATOR . $folder;
+    protected function folderPath(string $folder): string
+{
+    if ($folder === '__root__') {
+        return $this->imagesRoot();
     }
+
+    return $this->imagesRoot() . DIRECTORY_SEPARATOR . $folder;
+}
 
     private function assertSafeUploadedImage(UploadedFile $image): void
     {

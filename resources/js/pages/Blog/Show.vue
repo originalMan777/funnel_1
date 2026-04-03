@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Head, Link, usePage } from '@inertiajs/vue3'
 import FrontLayout from '@/layouts/FrontLayout.vue'
+import LeadSlotRenderer from '@/components/public/lead/LeadSlotRenderer.vue'
 
 type CategoryDto = {
   name: string;
@@ -47,9 +49,39 @@ type PostDto = {
   seo: PostSeoDto;
 }
 
-const { post } = defineProps<{
+type RelatedPostDto = {
+  id: number;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  card_snippet?: string | null;
+  published_at: string | null;
+  featured_image_url: string | null;
+  category: CategoryDto;
+}
+
+type AdjacentPostDto = {
+  title: string;
+  slug: string;
+  featured_image_url: string | null;
+} | null
+
+type ArticleBlock =
+  | { type: 'content'; html: string }
+  | { type: 'lead'; slot: string }
+
+  const relatedSidebarArticle = computed(() => relatedPosts.value[0] ?? null)
+
+const props = defineProps<{
   post: PostDto;
+  relatedPosts?: RelatedPostDto[];
+  previousPost?: AdjacentPostDto;
+  nextPost?: AdjacentPostDto;
 }>()
+
+const relatedPosts = computed(() => props.relatedPosts ?? [])
+const previousPost = computed(() => props.previousPost ?? null)
+const nextPost = computed(() => props.nextPost ?? null)
 
 const page = usePage()
 
@@ -68,7 +100,6 @@ const canManagePosts = (() => {
   return ['super_admin', 'admin', 'editor'].includes(String(authUser.role ?? ''))
 })()
 
-
 const formatDate = (value: string | null) => {
   if (!value) return ''
 
@@ -81,6 +112,77 @@ const formatDate = (value: string | null) => {
     day: 'numeric',
   })
 }
+
+const isParagraphToken = (html: string) => {
+  return /^<p\b[^>]*>[\s\S]*<\/p>$/i.test(html.trim())
+}
+
+const countWords = (html: string) => {
+  const text = html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!text) return 0
+
+  return text.split(' ').filter(Boolean).length
+}
+
+const articleBlocks = computed<ArticleBlock[]>(() => {
+  const html = String(props.post.content_html ?? '').trim()
+
+  if (!html) {
+    return []
+  }
+
+  const tokens = html
+    .split(/(<p\b[^>]*>[\s\S]*?<\/p>)/gi)
+    .filter((token) => token && token.trim() !== '')
+
+  const blocks: ArticleBlock[] = []
+
+  let currentHtml = ''
+  let totalWords = 0
+  let nextInsertionAt = 600
+  let slotIndex = 1
+
+  const flushContent = () => {
+    if (!currentHtml.trim()) return
+
+    blocks.push({
+      type: 'content',
+      html: currentHtml,
+    })
+
+    currentHtml = ''
+  }
+
+  for (const token of tokens) {
+    currentHtml += token
+
+    if (!isParagraphToken(token)) {
+      continue
+    }
+
+    totalWords += countWords(token)
+    flushContent()
+
+    if (totalWords >= nextInsertionAt && slotIndex <= 4) {
+      blocks.push({
+        type: 'lead',
+        slot: `blog_post_inline_${slotIndex}`,
+      })
+
+      slotIndex += 1
+      nextInsertionAt += 500
+    }
+  }
+
+  flushContent()
+
+  return blocks
+})
 </script>
 
 <template>
@@ -190,12 +292,12 @@ const formatDate = (value: string | null) => {
 
           <div v-if="canManagePosts" class="mt-6">
             <Link
-                :href="route('admin.posts.edit', post.id)"
-                class="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
+              :href="route('admin.posts.edit', post.id)"
+              class="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
             >
-                Edit Article
+              Edit Article
             </Link>
-            </div>
+          </div>
         </section>
 
         <section
@@ -211,11 +313,68 @@ const formatDate = (value: string | null) => {
 
         <section class="mt-14 max-w-3xl">
           <article class="min-w-0">
-            <div
-              class="post-content font-sans text-gray-800"
-              v-html="post.content_html"
-            />
+            <template v-for="(block, index) in articleBlocks" :key="index">
+              <div
+                v-if="block.type === 'content'"
+                class="post-content font-sans text-gray-800"
+                v-html="block.html"
+              />
+
+              <div v-else class="my-10">
+                <LeadSlotRenderer :slot-key="block.slot" />
+              </div>
+            </template>
           </article>
+        </section>
+
+        <section class="mt-10 max-w-3xl">
+          <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_4px_10px_rgba(0,0,0,0.08)]">
+            <div class="flex items-center justify-between gap-6">
+              <Link
+                v-if="previousPost"
+                :href="route('blog.show', previousPost.slug)"
+                class="flex items-center gap-3 max-w-[48%] group"
+              >
+                <img
+                  v-if="previousPost.featured_image_url"
+                  :src="previousPost.featured_image_url"
+                  class="w-14 h-14 object-cover rounded-md shrink-0"
+                />
+
+                <div class="min-w-0">
+                  <p class="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">
+                    Previous
+                  </p>
+
+                  <p class="mt-1 text-sm font-semibold text-gray-900 leading-tight line-clamp-2 group-hover:underline">
+                    {{ previousPost.title }}
+                  </p>
+                </div>
+              </Link>
+
+              <Link
+                v-if="nextPost"
+                :href="route('blog.show', nextPost.slug)"
+                class="flex items-center gap-3 max-w-[48%] ml-auto text-right group"
+              >
+                <div class="min-w-0">
+                  <p class="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">
+                    Next
+                  </p>
+
+                  <p class="mt-1 text-sm font-semibold text-gray-900 leading-tight line-clamp-2 group-hover:underline">
+                    {{ nextPost.title }}
+                  </p>
+                </div>
+
+                <img
+                  v-if="nextPost.featured_image_url"
+                  :src="nextPost.featured_image_url"
+                  class="w-14 h-14 object-cover rounded-md shrink-0"
+                />
+              </Link>
+            </div>
+          </div>
         </section>
 
         <section v-if="post.tags?.length" class="mt-14 max-w-3xl">
@@ -249,14 +408,65 @@ const formatDate = (value: string | null) => {
           </div>
         </section>
 
-        <section class="mt-14 max-w-6xl pb-16">
+        <section class="mt-14 max-w-5xl">
+          <LeadSlotRenderer slot-key="blog_post_before_related" />
+        </section>
+
+        <section class="mt-14 max-w-6xl pb-8">
           <div class="border-t border-gray-200 pt-8">
             <h2 class="font-display text-2xl font-extrabold uppercase tracking-tight text-gray-900">
               Related Posts
             </h2>
 
-            <div class="mt-6 rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6 text-sm text-gray-500">
-              Related posts can go here next.
+            <div
+              v-if="relatedPosts.length"
+              class="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-3"
+            >
+              <article
+                v-for="relatedPost in relatedPosts"
+                :key="relatedPost.id"
+                class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_8px_18px_rgba(0,0,0,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(0,0,0,0.10)]"
+              >
+                <Link
+                  :href="route('blog.show', relatedPost.slug)"
+                  class="block"
+                >
+                  <img
+                    v-if="relatedPost.featured_image_url"
+                    :src="relatedPost.featured_image_url"
+                    :alt="relatedPost.title"
+                    class="h-48 w-full object-cover"
+                  />
+
+                  <div class="p-5">
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">
+                      <span v-if="relatedPost.published_at">{{ formatDate(relatedPost.published_at) }}</span>
+                      <template v-if="relatedPost.category">
+                        <span class="text-gray-300">•</span>
+                        <span>{{ relatedPost.category.name }}</span>
+                      </template>
+                    </div>
+
+                    <h3 class="mt-3 font-display text-xl font-extrabold uppercase leading-tight text-gray-900">
+                      {{ relatedPost.title }}
+                    </h3>
+
+                    <p
+                      v-if="relatedPost.card_snippet || relatedPost.excerpt"
+                      class="mt-3 font-sans text-sm leading-relaxed text-gray-600"
+                    >
+                      {{ relatedPost.card_snippet || relatedPost.excerpt }}
+                    </p>
+                  </div>
+                </Link>
+              </article>
+            </div>
+
+            <div
+              v-else
+              class="mt-6 rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6 text-sm text-gray-500"
+            >
+              No related posts available yet.
             </div>
           </div>
         </section>
@@ -308,6 +518,30 @@ const formatDate = (value: string | null) => {
                 </Link>
               </div>
             </div>
+
+            <div v-if="relatedSidebarArticle" class="mt-6">
+        <h3 class="font-display text-sm font-extrabold uppercase tracking-wide text-gray-900">
+            Related Article
+        </h3>
+
+        <Link
+            :href="route('blog.show', relatedSidebarArticle.slug)"
+            class="mt-3 block overflow-hidden rounded-2xl border border-gray-200 bg-white transition hover:bg-gray-50"
+        >
+            <img
+            v-if="relatedSidebarArticle.featured_image_url"
+            :src="relatedSidebarArticle.featured_image_url"
+            :alt="relatedSidebarArticle.title"
+            class="h-28 w-full object-cover"
+            />
+
+            <div class="p-3">
+            <p class="text-sm font-semibold leading-snug text-gray-900">
+                {{ relatedSidebarArticle.title }}
+            </p>
+            </div>
+        </Link>
+        </div>
 
             <div class="mt-6">
               <Link

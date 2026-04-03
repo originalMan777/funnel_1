@@ -72,8 +72,11 @@ class PostController extends Controller
                 'featured_image_path',
             ])
             ->when($search !== '', fn ($q) => $q->where('title', 'like', '%' . $search . '%'))
-            ->when($status !== 'all', fn ($q) => $q->where('status', $status))
-            ->orderByDesc('updated_at')
+            ->when($status !== 'all', fn ($q) => $q->where('status', $status));
+
+        $this->applyPostIndexOrdering($posts);
+
+        $posts = $posts
             ->paginate(15)
             ->withQueryString()
             ->through(fn (Post $post) => [
@@ -635,52 +638,56 @@ class PostController extends Controller
     }
 
     private function buildPostNavigator(Post $post): array
-    {
+{
+    $previous = Post::query()
+        ->whereNull('archived_at')
+        ->where('id', '>', $post->id)
+        ->orderBy('id')
+        ->first(['id', 'title']);
+
+    if (! $previous) {
         $previous = Post::query()
             ->whereNull('archived_at')
-            ->where(function ($query) use ($post) {
-                $query
-                    ->where('updated_at', '>', $post->updated_at)
-                    ->orWhere(function ($nested) use ($post) {
-                        $nested
-                            ->where('updated_at', '=', $post->updated_at)
-                            ->where('id', '>', $post->id);
-                    });
-            })
-            ->orderBy('updated_at')
+            ->whereKeyNot($post->id)
             ->orderBy('id')
             ->first(['id', 'title']);
+    }
 
+    $next = Post::query()
+        ->whereNull('archived_at')
+        ->where('id', '<', $post->id)
+        ->orderByDesc('id')
+        ->first(['id', 'title']);
+
+    if (! $next) {
         $next = Post::query()
             ->whereNull('archived_at')
-            ->where(function ($query) use ($post) {
-                $query
-                    ->where('updated_at', '<', $post->updated_at)
-                    ->orWhere(function ($nested) use ($post) {
-                        $nested
-                            ->where('updated_at', '=', $post->updated_at)
-                            ->where('id', '<', $post->id);
-                    });
-            })
-            ->orderByDesc('updated_at')
+            ->whereKeyNot($post->id)
             ->orderByDesc('id')
             ->first(['id', 'title']);
-
-        return [
-            'previous' => $previous
-                ? [
-                    'id' => $previous->id,
-                    'title' => $previous->title,
-                ]
-                : null,
-            'next' => $next
-                ? [
-                    'id' => $next->id,
-                    'title' => $next->title,
-                ]
-                : null,
-        ];
     }
+
+    return [
+        'previous' => $previous
+            ? [
+                'id' => $previous->id,
+                'title' => $previous->title,
+            ]
+            : null,
+        'next' => $next
+            ? [
+                'id' => $next->id,
+                'title' => $next->title,
+            ]
+            : null,
+    ];
+}
+
+    private function applyPostIndexOrdering($query)
+{
+    return $query
+        ->orderByDesc('id');
+}
 
     private function storeImageInBlogLibrary(UploadedFile $file, string $baseName): string
     {

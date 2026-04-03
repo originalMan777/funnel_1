@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import FrontLayout from '@/layouts/FrontLayout.vue';
 import LeadSlotRenderer from '@/components/public/lead/LeadSlotRenderer.vue';
 
@@ -34,6 +34,21 @@ type PaginationLink = {
 type Pagination<T> = {
     data: T[];
     links: PaginationLink[];
+};
+
+const goToCategory = (slug: string) => {
+    router.visit(`/blog?category=${slug}`);
+};
+
+const currentCategorySlug =
+    typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('category') ?? ''
+        : '';
+
+const goToSelectedCategory = (event: Event) => {
+    const value = (event.target as HTMLSelectElement).value;
+
+    router.visit(value ? `/blog?category=${encodeURIComponent(value)}` : '/blog');
 };
 
 const props = defineProps<{
@@ -109,20 +124,39 @@ const badgeClasses = (category?: CategoryDto | null) => {
 
         <div class="mx-auto max-w-6xl px-6 py-16">
             <section class="space-y-4">
-                <p class="font-sans text-sm uppercase tracking-[0.22em] text-gray-500">
-                    Journal
-                </p>
+                <div class="flex items-start justify-between gap-4">
 
-                <h1
-                    class="font-display text-6xl font-extrabold uppercase leading-none tracking-tight text-gray-950 md:text-7xl"
-                >
-                    Blog
-                </h1>
+                    <div>
+                        <p class="font-sans text-sm uppercase tracking-[0.22em] text-gray-500">
+                            Journal
+                        </p>
 
-                <p class="max-w-3xl font-sans text-base leading-relaxed text-gray-600 md:text-lg">
-                    Real estate insights, guidance, and helpful articles for buyers,
-                    sellers, and investors.
-                </p>
+                        <h1
+                            class="font-display text-6xl font-extrabold uppercase leading-none tracking-tight text-gray-950 md:text-7xl"
+                        >
+                            Blog
+                        </h1>
+                    </div>
+
+                    <div class="mt-2">
+                        <select
+                            class="rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            :value="currentCategorySlug"
+                            @change="goToSelectedCategory"
+                        >
+                            <option value="">All Categories</option>
+
+                            <option
+                                v-for="cat in categories"
+                                :key="cat.slug"
+                                :value="cat.slug"
+                            >
+                                {{ cat.name }} ({{ cat.count }})
+                            </option>
+                        </select>
+                    </div>
+
+                </div>
             </section>
 
             <section class="mt-10">
@@ -166,11 +200,22 @@ const badgeClasses = (category?: CategoryDto | null) => {
                             >
                                 <div class="relative overflow-hidden">
                                     <div class="absolute left-4 top-4 z-10">
+                                        <button
+                                            v-if="post.category"
+                                            type="button"
+                                            class="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] shadow-sm"
+                                            :class="badgeClasses(post.category)"
+                                            @click.stop.prevent="goToCategory(post.category.slug)"
+                                        >
+                                            {{ post.category.name }}
+                                        </button>
+
                                         <span
+                                            v-else
                                             class="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] shadow-sm"
                                             :class="badgeClasses(post.category)"
                                         >
-                                            {{ post.category?.name ?? 'Article' }}
+                                            Article
                                         </span>
                                     </div>
 
@@ -193,9 +238,13 @@ const badgeClasses = (category?: CategoryDto | null) => {
 
                                         <template v-if="post.category">
                                             <span class="text-gray-300">•</span>
-                                            <span class="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+                                            <button
+                                                type="button"
+                                                class="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700 hover:bg-gray-200"
+                                                @click.stop.prevent="goToCategory(post.category.slug)"
+                                            >
                                                 {{ post.category.name }}
-                                            </span>
+                                            </button>
                                         </template>
                                     </div>
 

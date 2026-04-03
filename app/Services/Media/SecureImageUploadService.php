@@ -40,7 +40,7 @@ class SecureImageUploadService
             abort(422, 'Uploaded file is not a valid image.');
         }
 
-        $imagesRoot = public_path('images');
+        $imagesRoot = config('media.images_root', public_path('images'));
 
         if (!File::isDirectory($imagesRoot)) {
             File::makeDirectory($imagesRoot, 0755, true);
@@ -52,6 +52,13 @@ class SecureImageUploadService
 
         if (!File::isDirectory($directory)) {
             File::makeDirectory($directory, 0755, true);
+        }
+
+        $realImagesRoot = realpath($imagesRoot) ?: $imagesRoot;
+        $realDirectory = realpath($directory) ?: $directory;
+
+        if (!Str::startsWith($realDirectory, $realImagesRoot)) {
+            abort(422, 'Invalid media folder.');
         }
 
         $maxWidth = 2560;

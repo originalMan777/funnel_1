@@ -19,6 +19,11 @@ class LeadSlotController extends Controller
         'home_mid' => LeadBox::TYPE_SERVICE,
         'home_bottom' => LeadBox::TYPE_OFFER,
         'blog_index_mid_lead' => LeadBox::TYPE_OFFER,
+        'blog_post_inline_1' => LeadBox::TYPE_OFFER,
+        'blog_post_inline_2' => LeadBox::TYPE_OFFER,
+        'blog_post_inline_3' => LeadBox::TYPE_OFFER,
+        'blog_post_inline_4' => LeadBox::TYPE_OFFER,
+        'blog_post_before_related' => LeadBox::TYPE_OFFER,
     ];
 
     private function requireLeadBoxAccess(Request $request): void
@@ -49,8 +54,7 @@ class LeadSlotController extends Controller
             })
             ->values();
 
-        $activeResourceBoxes = LeadBox::query()
-            ->where('type', LeadBox::TYPE_RESOURCE)
+        $activeLeadBoxes = LeadBox::query()
             ->where('status', LeadBox::STATUS_ACTIVE)
             ->orderBy('internal_name')
             ->get()
@@ -58,35 +62,13 @@ class LeadSlotController extends Controller
                 'id' => $box->id,
                 'internal_name' => $box->internal_name,
                 'title' => $box->title,
-            ]);
-
-        $activeServiceBoxes = LeadBox::query()
-            ->where('type', LeadBox::TYPE_SERVICE)
-            ->where('status', LeadBox::STATUS_ACTIVE)
-            ->orderBy('internal_name')
-            ->get()
-            ->map(fn (LeadBox $box) => [
-                'id' => $box->id,
-                'internal_name' => $box->internal_name,
-                'title' => $box->title,
-            ]);
-
-        $activeOfferBoxes = LeadBox::query()
-            ->where('type', LeadBox::TYPE_OFFER)
-            ->where('status', LeadBox::STATUS_ACTIVE)
-            ->orderBy('internal_name')
-            ->get()
-            ->map(fn (LeadBox $box) => [
-                'id' => $box->id,
-                'internal_name' => $box->internal_name,
-                'title' => $box->title,
-            ]);
+                'type' => $box->type,
+            ])
+            ->values();
 
         return Inertia::render('Admin/LeadSlots/Index', [
             'slots' => $slots,
-            'activeResourceBoxes' => $activeResourceBoxes,
-            'activeServiceBoxes' => $activeServiceBoxes,
-            'activeOfferBoxes' => $activeOfferBoxes,
+            'activeLeadBoxes' => $activeLeadBoxes,
         ]);
     }
 
@@ -119,12 +101,10 @@ class LeadSlotController extends Controller
         $requiredType = self::SLOT_TYPE_MAP[$leadSlot->key];
 
         if ($leadBox->type !== $requiredType || $leadBox->status !== LeadBox::STATUS_ACTIVE) {
-            $typeLabel = ucfirst($requiredType);
-
             return redirect()
                 ->back()
                 ->withErrors([
-                    'lead_box_id' => "Only Active {$typeLabel} Lead Boxes can be assigned to this slot.",
+                    'lead_box_id' => 'Only Active Lead Boxes of the correct type can be assigned to this slot.',
                 ]);
         }
 
@@ -137,6 +117,4 @@ class LeadSlotController extends Controller
             ->back()
             ->with('success', 'Slot updated.');
     }
-
-
 }

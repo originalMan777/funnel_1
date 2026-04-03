@@ -47,6 +47,7 @@ class LeadSlotAssignmentTest extends TestCase
             ])
             ->assertRedirect(route('admin.lead-slots.index'))
             ->assertSessionHasErrors('lead_box_id');
+            
 
         $this->assertDatabaseMissing('lead_assignments', [
             'lead_slot_id' => $slot->id,
