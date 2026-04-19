@@ -1,22 +1,31 @@
 <script setup lang="ts">
-import FrontLayout from '@/layouts/FrontLayout.vue'
-import { useForm } from '@inertiajs/vue3'
+import FrontLayout from '@/layouts/FrontLayout.vue';
+import { useForm, usePage } from '@inertiajs/vue3';
+
+const page = usePage();
+const searchParams = new URLSearchParams(page.url.includes('?') ? page.url.split('?')[1] : '');
 
 const form = useForm({
-  name: '',
-  email: '',
-  phone: '',
-  details: '',
-})
+    name: '',
+    email: '',
+    phone: '',
+    details: '',
+    page_key: searchParams.get('page_key') || '',
+    lead_slot_key: searchParams.get('lead_slot_key') || '',
+    source_popup_key: searchParams.get('source_popup_key') || '',
+    acquisition_path_key: searchParams.get('acquisition_path_key') || '',
+    acquisition_slug: searchParams.get('acquisition_slug') || '',
+    service_slug: searchParams.get('service_slug') || '',
+});
 
 function submit() {
-  form.post(route('consultation.request.store'), {
-    preserveScroll: true,
-    onSuccess: () => {
-      form.reset()
-      alert('Consultation request sent successfully.')
-    },
-  })
+    form.post(route('consultation.request.store'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            form.reset('name', 'email', 'phone', 'details');
+            alert('Consultation request sent successfully.');
+        },
+    });
 }
 </script>
 
@@ -49,6 +58,12 @@ function submit() {
         <div class="mx-auto max-w-5xl px-6">
           <div class="rounded-[32px] bg-stone-50 p-8 shadow-sm ring-1 ring-black/5 md:p-10">
             <form @submit.prevent="submit" class="space-y-6">
+              <input v-model="form.page_key" type="hidden" />
+              <input v-model="form.lead_slot_key" type="hidden" />
+              <input v-model="form.source_popup_key" type="hidden" />
+              <input v-model="form.acquisition_path_key" type="hidden" />
+              <input v-model="form.acquisition_slug" type="hidden" />
+              <input v-model="form.service_slug" type="hidden" />
 
               <!-- NAME -->
               <div class="space-y-2">
@@ -121,7 +136,6 @@ function submit() {
               <div v-if="form.recentlySuccessful" class="text-green-600 text-sm">
                 Your consultation request has been submitted.
               </div>
-
             </form>
           </div>
         </div>

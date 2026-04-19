@@ -7,12 +7,12 @@ use App\Models\Category;
 use App\Models\Post;
 use App\Models\Tag;
 use App\Services\Blog\PostContentSanitizer;
+use App\Services\Logging\AdminActivityLogger;
 use App\Services\Media\SecureImageUploadService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
@@ -21,6 +21,7 @@ class PostController extends Controller
     public function __construct(
         private readonly PostContentSanitizer $sanitizer,
         private readonly SecureImageUploadService $secureImageUploadService,
+        private readonly AdminActivityLogger $adminLogger,
     ) {
     }
 
@@ -312,6 +313,9 @@ class PostController extends Controller
     {
         $this->requirePostAccess($request);
 
+        $originalAttributes = $this->postSnapshot($post);
+        $originalTagIds = $post->tags()->pluck('tags.id')->map(fn ($id) => (int) $id)->sort()->values()->all();
+
         $validated = $this->validatePost($request);
         $validated = $this->normalizeValidatedPostData($validated);
         $validated['content'] = $this->sanitizer->sanitizeForStorage((string) $validated['content']);
@@ -385,10 +389,19 @@ class PostController extends Controller
 
         $post->tags()->sync($tagIds);
 
-        $this->logAdminAction('post_updated', $request, $post, [
-            'status' => $post->status,
-            'tag_count' => count($tagIds),
-        ]);
+        $changedFields = $this->changedPostFields(
+            $originalAttributes,
+            $this->postSnapshot($post),
+            $originalTagIds,
+            $tagIds,
+        );
+
+        if ($changedFields !== []) {
+            $this->logAdminAction('post_updated', $request, $post, [
+                'changed_fields' => $changedFields,
+                'tag_count' => count($tagIds),
+            ]);
+        }
 
         return redirect()
             ->route('admin.posts.edit', $post)
@@ -399,6 +412,8 @@ class PostController extends Controller
     {
         $this->requirePublishAccess($request);
 
+        $previousStatus = $post->status;
+
         $post->update([
             'status' => Post::STATUS_PUBLISHED,
             'published_at' => now(),
@@ -406,7 +421,8 @@ class PostController extends Controller
         ]);
 
         $this->logAdminAction('post_published', $request, $post, [
-            'status' => $post->status,
+            'previous_status' => $previousStatus,
+            'new_status' => $post->status,
         ]);
 
         return to_route('admin.posts.edit', $post);
@@ -416,6 +432,8 @@ class PostController extends Controller
     {
         $this->requirePublishAccess($request);
 
+        $previousStatus = $post->status;
+
         $post->update([
             'status' => Post::STATUS_DRAFT,
             'published_at' => null,
@@ -423,7 +441,8 @@ class PostController extends Controller
         ]);
 
         $this->logAdminAction('post_unpublished', $request, $post, [
-            'status' => $post->status,
+            'previous_status' => $previousStatus,
+            'new_status' => $post->status,
         ]);
 
         return to_route('admin.posts.edit', $post);
@@ -433,12 +452,16 @@ class PostController extends Controller
     {
         $this->requirePostAccess($request);
 
+        $previousStatus = $post->status;
+
         $post->update([
             'archived_at' => now(),
             'updated_by' => (int) $request->user()->id,
         ]);
 
         $this->logAdminAction('post_archived', $request, $post, [
+            'previous_status' => $previousStatus,
+            'new_status' => $post->status,
             'archived_at' => $post->archived_at,
         ]);
 
@@ -461,16 +484,18 @@ class PostController extends Controller
         $post->tags()->detach();
         $post->delete();
 
-        Log::channel(config('logging.default'))->info('admin_post_deleted', [
-            'event' => 'admin_post_deleted',
-            'user_id' => (int) $request->user()->id,
-            'post_id' => $postId,
-            'post_title' => $postTitle,
-            'post_slug' => $postSlug,
-            'ip' => $request->ip(),
-            'user_agent' => (string) $request->userAgent(),
-            'occurred_at' => now()->toIso8601String(),
-        ]);
+        $this->adminLogger->info(
+            event: 'post_deleted',
+            request: $request,
+            entityType: 'post',
+            entityId: $postId,
+            outcome: 'deleted',
+            context: [
+                'post_id' => $postId,
+                'post_slug' => $postSlug,
+                'post_title' => $postTitle,
+            ],
+        );
 
         return to_route('admin.posts.index')
             ->with('success', 'Post deleted successfully.');
@@ -724,16 +749,66 @@ class PostController extends Controller
 
     private function logAdminAction(string $event, Request $request, Post $post, array $extra = []): void
     {
-        Log::channel(config('logging.default'))->info($event, [
-            'event' => $event,
-            'user_id' => (int) $request->user()->id,
-            'post_id' => $post->id,
-            'post_slug' => $post->slug,
-            'post_status' => $post->status,
-            'ip' => $request->ip(),
-            'user_agent' => (string) $request->userAgent(),
-            'occurred_at' => now()->toIso8601String(),
-            ...$extra,
-        ]);
+        $this->adminLogger->info(
+            event: $event,
+            request: $request,
+            entity: $post,
+            entityType: 'post',
+            entityId: $post->id,
+            outcome: $extra['new_status'] ?? $post->status ?? 'recorded',
+            context: [
+                'post_id' => $post->id,
+                'post_slug' => $post->slug,
+                'post_status' => $post->status,
+                ...$extra,
+            ],
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function postSnapshot(Post $post): array
+    {
+        return [
+            'title' => $post->title,
+            'slug' => $post->slug,
+            'excerpt' => $post->excerpt,
+            'content' => $post->content,
+            'sources' => $post->sources,
+            'category_id' => $post->category_id,
+            'is_featured' => (bool) $post->is_featured,
+            'featured_image_path' => $post->featured_image_path,
+            'status' => $post->status,
+            'published_at' => $post->published_at?->toIso8601String(),
+            'archived_at' => $post->archived_at?->toIso8601String(),
+            'meta_title' => $post->meta_title,
+            'meta_description' => $post->meta_description,
+            'canonical_url' => $post->canonical_url,
+            'og_title' => $post->og_title,
+            'og_description' => $post->og_description,
+            'og_image_path' => $post->og_image_path,
+            'noindex' => (bool) $post->noindex,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $before
+     * @param  array<string, mixed>  $after
+     * @param  array<int, int>  $beforeTagIds
+     * @param  array<int, int>  $afterTagIds
+     * @return array<int, string>
+     */
+    private function changedPostFields(array $before, array $after, array $beforeTagIds, array $afterTagIds): array
+    {
+        $changed = collect(array_keys($after))
+            ->filter(fn (string $field): bool => ($before[$field] ?? null) !== ($after[$field] ?? null))
+            ->values();
+
+        if (collect($beforeTagIds)->sort()->values()->all() !== collect($afterTagIds)->sort()->values()->all()) {
+            $changed->push('tags');
+        }
+
+        return $changed->unique()->values()->all();
     }
 }

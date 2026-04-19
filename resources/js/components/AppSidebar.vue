@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, FolderGit2, LayoutGrid } from 'lucide-vue-next';
+import { BookOpen, FolderGit2, LayoutGrid, Mail, Megaphone, MessageSquareText, Send, Settings2, Users } from 'lucide-vue-next';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -22,6 +22,41 @@ const mainNavItems: NavItem[] = [
         title: 'Dashboard',
         href: dashboard(),
         icon: LayoutGrid,
+    },
+    {
+        title: 'Communications',
+        href: route('admin.communications.index'),
+        icon: Mail,
+    },
+    {
+        title: 'Communication Events',
+        href: route('admin.communications.events.index'),
+        icon: MessageSquareText,
+    },
+    {
+        title: 'Communication Deliveries',
+        href: route('admin.communications.deliveries.index'),
+        icon: Send,
+    },
+    {
+        title: 'Marketing Syncs',
+        href: route('admin.communications.syncs.index'),
+        icon: Users,
+    },
+    {
+        title: 'Communication Settings',
+        href: route('admin.communications.settings.index'),
+        icon: Settings2,
+    },
+    {
+        title: 'Campaigns',
+        href: route('admin.campaigns.index'),
+        icon: Megaphone,
+    },
+    {
+        title: 'Campaign Enrollments',
+        href: route('admin.campaign-enrollments.index'),
+        icon: Users,
     },
 ];
 

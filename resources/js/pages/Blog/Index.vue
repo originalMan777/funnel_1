@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import FrontLayout from '@/layouts/FrontLayout.vue';
 import LeadSlotRenderer from '@/components/public/lead/LeadSlotRenderer.vue';
 
@@ -61,6 +61,15 @@ const props = defineProps<{
     };
 }>();
 
+const page = usePage<any>();
+const siteContent = computed(() => page.props.siteContent ?? {});
+const categoryBadgeClasses = computed<Record<string, string>>(
+    () => siteContent.value?.blog?.category_badge_classes ?? {},
+);
+const defaultCategoryBadgeClass = computed<string>(
+    () => siteContent.value?.blog?.default_category_badge_class ?? 'border-2 border-rose-600 text-rose-700 bg-white',
+);
+
 const mainBlocks = computed(() => {
     const blocks: PostRow[][] = [];
 
@@ -90,31 +99,7 @@ const formatDate = (value: string) => {
 const badgeClasses = (category?: CategoryDto | null) => {
     const value = (category?.slug || category?.name || '').toString().trim().toLowerCase();
 
-    if (value === 'food') {
-        return 'border-2 border-green-600 text-green-700 bg-white';
-    }
-
-    if (value === 'dogs' || value === 'dog') {
-        return 'border-2 border-blue-600 text-blue-700 bg-white';
-    }
-
-    if (value === 'trees' || value === 'tree') {
-        return 'border-2 border-emerald-600 text-emerald-700 bg-white';
-    }
-
-    if (value === 'gold') {
-        return 'border-2 border-amber-500 text-amber-700 bg-white';
-    }
-
-    if (value === 'news') {
-        return 'border-2 border-slate-600 text-slate-700 bg-white';
-    }
-
-    if (value === 'guides' || value === 'guide') {
-        return 'border-2 border-violet-600 text-violet-700 bg-white';
-    }
-
-    return 'border-2 border-rose-600 text-rose-700 bg-white';
+    return categoryBadgeClasses.value[value] ?? defaultCategoryBadgeClass.value;
 };
 </script>
 

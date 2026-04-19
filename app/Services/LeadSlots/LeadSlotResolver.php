@@ -2,24 +2,11 @@
 
 namespace App\Services\LeadSlots;
 
-use App\Models\LeadAssignment;
 use App\Models\LeadBox;
 use App\Models\LeadSlot;
 
 class LeadSlotResolver
 {
-    private const SLOT_TYPE_MAP = [
-        'home_intro' => LeadBox::TYPE_RESOURCE,
-        'home_mid' => LeadBox::TYPE_SERVICE,
-        'home_bottom' => LeadBox::TYPE_OFFER,
-    ];
-
-    private const HOME_SLOT_KEYS = [
-        'home_intro',
-        'home_mid',
-        'home_bottom',
-    ];
-
     public function __construct(
         private readonly LeadBoxPresenter $presenter,
     ) {
@@ -34,14 +21,30 @@ class LeadSlotResolver
     {
         $slotKeys = config('lead_blocks.page_slots')[$pageKey] ?? [];
 
-        // Defensive: keep homepage slots resolvable even if the config page map is stale/out-of-sync.
-        if ($pageKey === 'home') {
-            $slotKeys = array_values(array_unique(array_merge($slotKeys, self::HOME_SLOT_KEYS)));
+        $registrySlotKeys = collect(config('lead_blocks.slot_definitions', []))
+            ->filter(fn (array $definition) => ($definition['page_key'] ?? null) === $pageKey)
+            ->keys()
+            ->all();
+
+        $slotKeys = array_values(array_unique(array_merge($slotKeys, $registrySlotKeys)));
+
+        if ($slotKeys === []) {
+            return [];
         }
+
+        $slots = LeadSlot::query()
+            ->with('assignment.leadBox')
+            ->whereIn('key', $slotKeys)
+            ->get()
+            ->keyBy('key');
 
         $resolved = [];
         foreach ($slotKeys as $slotKey) {
-            $resolved[$slotKey] = $this->resolveSlot($slotKey, $pageKey);
+            $resolved[$slotKey] = $this->resolveSlot(
+                $slots->get($slotKey),
+                $slotKey,
+                $pageKey,
+            );
         }
 
         return $resolved;
@@ -50,29 +53,20 @@ class LeadSlotResolver
     /**
      * @return array<string,mixed>|null
      */
-    private function resolveSlot(string $slotKey, string $pageKey): ?array
+    private function resolveSlot(?LeadSlot $slot, string $slotKey, string $pageKey): ?array
     {
-        $slot = LeadSlot::query()->where('key', $slotKey)->first();
         if (! $slot || ! $slot->is_enabled) {
             return null;
         }
 
-        $assignment = LeadAssignment::query()
-            ->with('leadBox')
-            ->where('lead_slot_id', $slot->id)
-            ->first();
-
+        $assignment = $slot->assignment;
         if (! $assignment || ! $assignment->leadBox) {
             return null;
         }
 
         $leadBox = $assignment->leadBox;
-        $requiredType = self::SLOT_TYPE_MAP[$slotKey] ?? null;
 
-        if (
-            trim(strtolower((string) $leadBox->status)) !== LeadBox::STATUS_ACTIVE
-            || ($requiredType !== null && $leadBox->type !== $requiredType)
-        ) {
+        if (trim(strtolower((string) $leadBox->status)) !== LeadBox::STATUS_ACTIVE) {
             return null;
         }
 

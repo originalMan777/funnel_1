@@ -13,6 +13,10 @@ class LeadAssignment extends Model
     protected $fillable = [
         'lead_slot_id',
         'lead_box_id',
+        'acquisition_id',
+        'service_id',
+        'acquisition_path_id',
+        'acquisition_path_key',
         'override_title',
         'override_short_text',
         'override_button_text',
@@ -26,5 +30,20 @@ class LeadAssignment extends Model
     public function leadBox(): BelongsTo
     {
         return $this->belongsTo(LeadBox::class, 'lead_box_id');
+    }
+
+    public function acquisition(): BelongsTo
+    {
+        return $this->belongsTo(Acquisition::class);
+    }
+
+    public function service(): BelongsTo
+    {
+        return $this->belongsTo(Service::class);
+    }
+
+    public function acquisitionPath(): BelongsTo
+    {
+        return $this->belongsTo(AcquisitionPath::class);
     }
 }

@@ -62,7 +62,7 @@ class LeadSlotResolverTest extends TestCase
         $this->assertNull($resolved['home_intro']);
     }
 
-    public function test_returns_null_if_wrong_type(): void
+    public function test_resolves_active_assignment_even_if_slot_and_box_types_differ(): void
     {
         $slot = LeadSlot::factory()->create([
             'key' => 'home_intro',
@@ -77,7 +77,7 @@ class LeadSlotResolverTest extends TestCase
 
         $resolved = app(LeadSlotResolver::class)->resolve('home');
 
-        $this->assertNull($resolved['home_intro']);
+        $this->assertSame($leadBox->id, $resolved['home_intro']['leadBoxId']);
     }
 
     public function test_returns_null_if_inactive_lead_box(): void

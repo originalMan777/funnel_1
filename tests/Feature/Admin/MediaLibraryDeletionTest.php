@@ -6,11 +6,13 @@ use App\Models\Post;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use Tests\Concerns\UsesIsolatedMediaRoot;
 use Tests\TestCase;
 
 class MediaLibraryDeletionTest extends TestCase
 {
     use RefreshDatabase;
+    use UsesIsolatedMediaRoot;
 
     private string $imagesRoot;
 
@@ -18,18 +20,10 @@ class MediaLibraryDeletionTest extends TestCase
     {
         parent::setUp();
 
-        // ✅ USE TEST-ONLY DIRECTORY (NOT PUBLIC)
-        $this->imagesRoot = storage_path('framework/testing/images/blog');
+        $this->setUpIsolatedMediaRoot();
+        $this->imagesRoot = $this->isolatedBlogImagesRoot();
 
         File::ensureDirectoryExists($this->imagesRoot);
-    }
-
-    protected function tearDown(): void
-    {
-        // ✅ SAFE: only deletes test directory
-        File::deleteDirectory(storage_path('framework/testing'));
-
-        parent::tearDown();
     }
 
     private function testPath(string $filename): string
@@ -60,7 +54,7 @@ class MediaLibraryDeletionTest extends TestCase
         $admin = User::factory()->create(['is_admin' => true]);
 
         $file = 'in-use-featured.png';
-        File::put($this->testPath($file), 'image');
+        $this->putTinyPng($this->testPath($file));
 
         $path = $this->publicPath($file);
 
@@ -79,7 +73,7 @@ class MediaLibraryDeletionTest extends TestCase
         $admin = User::factory()->create(['is_admin' => true]);
 
         $file = 'in-use-og.png';
-        File::put($this->testPath($file), 'image');
+        $this->putTinyPng($this->testPath($file));
 
         $path = $this->publicPath($file);
 
@@ -98,7 +92,7 @@ class MediaLibraryDeletionTest extends TestCase
         $admin = User::factory()->create(['is_admin' => true]);
 
         $file = 'in-use-storage.png';
-        File::put($this->testPath($file), 'image');
+        $this->putTinyPng($this->testPath($file));
 
         $path = $this->publicPath($file);
 

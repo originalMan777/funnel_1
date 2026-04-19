@@ -1,566 +1,594 @@
 <script setup>
-import { Link } from '@inertiajs/vue3'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { Link, usePage } from '@inertiajs/vue3'
 import FrontLayout from '@/layouts/FrontLayout.vue'
 import LeadSlotRenderer from '@/components/public/lead/LeadSlotRenderer.vue'
-import coverImage from '@/images/cover-1.png'
+import buyingIcon from '@/images/icons/who-we-help/buying.svg'
+import sellingIcon from '@/images/icons/who-we-help/selling.svg'
+import rentingIcon from '@/images/icons/who-we-help/renting.svg'
+import investingIcon from '@/images/icons/who-we-help/investing.svg'
 
-const featuredRows = [
-    {
-        eyebrow: 'Featured Articles',
-        title: 'A few strong starting points',
-        description:
-            'Six quick article entry points organized as three featured category groups.',
-        categories: [
-            {
-                title: 'Market',
-                href: '/blog?category=market',
-                links: [
-                    {
-                        title: 'Rates + demand',
-                        summary: 'A simple framework for reading momentum.',
-                        href: '/blog?category=market',
-                    },
-                    {
-                        title: 'Seasonality',
-                        summary: 'Why timing shifts and how to plan around it.',
-                        href: '/blog?category=market',
-                    },
-                ],
-            },
-            {
-                title: 'Relocating',
-                href: '/blog?category=relocating',
-                links: [
-                    {
-                        title: 'Moving with a plan',
-                        summary: 'How to make relocation feel more structured.',
-                        href: '/blog?category=relocating',
-                    },
-                    {
-                        title: 'Area transition tips',
-                        summary: 'What to think through before making the move.',
-                        href: '/blog?category=relocating',
-                    },
-                ],
-            },
-            {
-                title: 'Financing',
-                href: '/blog?category=financing',
-                links: [
-                    {
-                        title: 'Pre-approval timing',
-                        summary: 'When to lock and what documents matter.',
-                        href: '/blog?category=financing',
-                    },
-                    {
-                        title: 'Closing costs',
-                        summary: 'What to budget for beyond the down payment.',
-                        href: '/blog?category=financing',
-                    },
-                ],
-            },
-        ],
+const activeWhoWeHelp = ref(null)
+
+const props = defineProps({
+    featuredSliderCategories: {
+        type: Array,
+        default: () => [],
     },
-    {
-        eyebrow: 'Featured Articles',
-        title: 'Next reads, if you have five minutes',
-        description:
-            'Another featured row with three more categories and two article tiles in each.',
-        categories: [
-            {
-                title: 'Neighborhood',
-                href: '/blog?category=neighborhood',
-                links: [
-                    {
-                        title: 'Commute tradeoffs',
-                        summary: 'How to balance schools, space, and time.',
-                        href: '/blog?category=neighborhood',
-                    },
-                    {
-                        title: 'Shortlisting',
-                        summary: 'A clean way to narrow choices quickly.',
-                        href: '/blog?category=neighborhood',
-                    },
-                ],
-            },
-            {
-                title: 'Mortgages',
-                href: '/blog?category=mortgages',
-                links: [
-                    {
-                        title: 'Mortgage timing',
-                        summary: 'What to prepare before making a move.',
-                        href: '/blog?category=mortgages',
-                    },
-                    {
-                        title: 'Loan readiness',
-                        summary: 'How financing affects your next step.',
-                        href: '/blog?category=mortgages',
-                    },
-                ],
-            },
-            {
-                title: 'Process',
-                href: '/blog?category=process',
-                links: [
-                    {
-                        title: 'Timeline planning',
-                        summary: 'A simple way to map milestones to dates.',
-                        href: '/blog?category=process',
-                    },
-                    {
-                        title: 'Negotiation clarity',
-                        summary: 'What to push on, what to let go.',
-                        href: '/blog?category=process',
-                    },
-                ],
-            },
-        ],
-    },
+})
+
+const page = usePage()
+
+const defaultWhyNojoPoints = [
+    { icon: '◔', text: 'Clear, honest guidance' },
+    { icon: '◔', text: 'Focused on your specific situation' },
+    { icon: '◔', text: 'Local market understanding' },
+    { icon: '◔', text: 'Strategy before action' },
+    { icon: '◔', text: 'No pressure — just direction you can trust' },
 ]
 
-const whoWeHelpTiles = [
-    {
-        title: 'Buying',
-        body: 'Clear direction for buyers who want to understand the process and move with confidence.',
-        kicker: 'View buyer strategy',
-        href: '/buyers-strategy',
-    },
-    {
-        title: 'Selling',
-        body: 'Helpful strategy for sellers preparing to position, price, and present their property well.',
-        kicker: 'View seller strategy',
-        href: '/sellers-strategy',
-    },
-    {
-        title: 'Renting',
-        body: 'Useful guidance for renters who want better clarity before making their next move.',
-        kicker: 'Read renting article',
-        href: '/blog?category=renting',
-    },
-    {
-        title: 'Investing',
-        body: 'Practical insight for investors trying to think more clearly about market opportunities.',
-        kicker: 'Read investing article',
-        href: '/blog?category=investing',
-    },
-]
-
-const services = [
-    {
-        title: 'Consultation',
-        body: 'One-on-one guidance tailored to your real estate situation, goals, and next steps.',
-        href: '/consultation',
-    },
-    {
-        title: 'Buyers Strategy',
-        body: 'Clear direction for evaluating options, understanding the process, and moving toward the right purchase.',
-        href: '/buyers-strategy',
-    },
-    {
-        title: 'Sellers Strategy',
-        body: 'Strategic support for preparing, pricing, and positioning your property before entering the market.',
-        href: '/sellers-strategy',
-    },
-    {
-        title: 'Market Evaluation',
-        body: 'Insight into local conditions, timing, and market realities so you can move with more clarity.',
-        href: '/resources',
-    },
-]
-
-const whyNojoPoints = [
-    {
-        icon: '◔',
-        text: 'Clear, honest guidance',
-    },
-    {
-        icon: '◔',
-        text: 'Focused on your specific situation',
-    },
-    {
-        icon: '◔',
-        text: 'Local market understanding',
-    },
-    {
-        icon: '◔',
-        text: 'Strategy before action',
-    },
-    {
-        icon: '◔',
-        text: 'No pressure — just direction you can trust',
-    },
-]
-
-const insights = [
+const defaultInsights = [
     {
         title: 'Buying in NJ',
-        body: 'Helpful guidance for buyers preparing to make a move in New Jersey with more clarity and confidence.',
+        body: 'Know how to approach buying, what to watch for, and how to move forward with confidence.',
         href: '/buyers-strategy',
+        label: 'Buyers',
+        cta: 'See how to approach buying →',
     },
     {
         title: 'Selling Tips',
-        body: 'Practical advice for homeowners getting ready to position, prepare, and sell their property effectively.',
+        body: 'Learn how to position, prepare, and sell your property with a clear strategy behind you.',
         href: '/sellers-strategy',
+        label: 'Sellers',
+        cta: 'Learn how to sell strategically →',
     },
     {
         title: 'Market Trends',
-        body: 'Stay informed about changing market conditions and what they may mean for your next real estate decision.',
+        body: 'Understand what’s happening in the market and how it impacts your next move.',
         href: '/blog?category=market-trends',
+        label: 'Market',
+        cta: 'Understand where the market is going →',
     },
 ]
+
+const siteContent = computed(() => page.props.siteContent ?? {})
+const whyNojoPoints = computed(() => siteContent.value?.home?.why_points ?? defaultWhyNojoPoints)
+const insights = computed(() => siteContent.value?.home?.insights ?? defaultInsights)
+
+const realFeaturedCategories = computed(() => props.featuredSliderCategories ?? [])
+
+const featuredRepeatCount = 5
+
+const denseFeaturedCategories = computed(() => {
+    const items = realFeaturedCategories.value
+    if (!items.length) return []
+
+    return Array.from({ length: featuredRepeatCount }, () => items).flat()
+})
+
+const featuredViewport = ref(null)
+const featuredIndex = ref(0)
+const featuredAnimating = ref(false)
+const featuredCardWidth = ref(352)
+const featuredGap = 16
+
+const featuredRealCount = computed(() => realFeaturedCategories.value.length)
+const featuredMiddleCopyStart = computed(() => featuredRealCount.value * 2)
+
+const featuredTrackStyle = computed(() => {
+    const offset = featuredIndex.value * (featuredCardWidth.value + featuredGap)
+
+    return {
+        transform: `translate3d(-${offset}px, 0, 0)`,
+        transition: featuredAnimating.value ? 'transform 450ms ease' : 'none',
+        gap: `${featuredGap}px`,
+    }
+})
+
+function measureFeaturedCardWidth() {
+    if (!featuredViewport.value) return
+
+    const probe = featuredViewport.value.querySelector('[data-featured-card]')
+    if (!probe) return
+
+    featuredCardWidth.value = probe.getBoundingClientRect().width
+}
+
+function jumpToFeaturedIndex(index) {
+    featuredAnimating.value = false
+    featuredIndex.value = index
+}
+
+function normalizeFeaturedIndex() {
+    const realCount = featuredRealCount.value
+    if (realCount <= 0) return
+
+    const middleStart = featuredMiddleCopyStart.value
+    const relative = ((featuredIndex.value % realCount) + realCount) % realCount
+
+    jumpToFeaturedIndex(middleStart + relative)
+}
+
+function scrollFeatured(direction) {
+    const realCount = featuredRealCount.value
+    if (realCount <= 0 || featuredAnimating.value) return
+
+    featuredAnimating.value = true
+    featuredIndex.value += direction
+}
+
+async function handleFeaturedTransitionEnd() {
+    const realCount = featuredRealCount.value
+    if (realCount <= 0) {
+        featuredAnimating.value = false
+        return
+    }
+
+    const middleStart = featuredMiddleCopyStart.value
+    const middleEnd = middleStart + realCount - 1
+
+    if (featuredIndex.value < middleStart || featuredIndex.value > middleEnd) {
+        const relative = ((featuredIndex.value % realCount) + realCount) % realCount
+
+        featuredAnimating.value = false
+        featuredIndex.value = middleStart + relative
+        await nextTick()
+        return
+    }
+
+    featuredAnimating.value = false
+}
+
+function onResize() {
+    measureFeaturedCardWidth()
+}
+
+onMounted(async () => {
+    await nextTick()
+    measureFeaturedCardWidth()
+
+    if (featuredRealCount.value > 0) {
+        featuredIndex.value = featuredMiddleCopyStart.value
+    }
+
+    window.addEventListener('resize', onResize)
+})
+
+onBeforeUnmount(() => {
+    window.removeEventListener('resize', onResize)
+})
 </script>
 
 <template>
     <FrontLayout>
         <section
-            class="relative min-h-[85vh] w-full overflow-hidden rounded-[2rem] bg-cover bg-center"
-            :style="{ backgroundImage: `url(${coverImage})` }"
+            class="relative min-h-[68vh] w-full overflow-hidden bg-cover bg-[position:70%_center]"
+            :style="{ backgroundImage: `url('/images/modern_kitchen_img1.jpg')` }"
         >
-            <div class="absolute inset-0 bg-black/45"></div>
+            <div class="absolute inset-0 bg-gradient-to-r from-black/75 via-black/50 to-black/20"></div>
 
             <div
-                class="relative z-10 mx-auto flex min-h-[85vh] max-w-7xl items-center px-6 py-16 md:px-10"
+                class="relative z-10 mx-auto flex min-h-[68vh] max-w-[90rem] items-center px-6 py-16 md:px-10"
             >
-                <div class="max-w-2xl space-y-6 text-white">
+                <div class="max-w-2xl space-y-6 text-white md:pl-4 lg:pl-8">
                     <h1
-                        class="text-4xl leading-tight font-bold md:text-5xl lg:text-6xl"
+                        class="max-w-[13ch] text-4xl font-bold leading-[1.02] tracking-[-0.03em] md:text-5xl lg:text-[4.25rem]"
                     >
-                        Clear Real Estate Guidance for Your Next Move
+                        Make the Right Move — With Clear Guidance Behind You
                     </h1>
 
                     <p
                         class="max-w-xl text-lg leading-relaxed text-white/90 md:text-xl"
                     >
-                        Helping buyers, sellers, and investors make confident
-                        property decisions with professional insight and
-                        strategy.
+                        Before you buy, sell, or make your next move, get clear direction on what actually makes sense for your situation.
                     </p>
 
-                    <div class="flex flex-wrap gap-4">
+                    <div class="flex flex-wrap items-center gap-5 pt-2">
                         <Link
                             href="/consultation"
                             data-popup-trigger="current-page"
-                            class="rounded-xl bg-white px-6 py-3 font-medium text-gray-900 shadow-sm"
+                            class="rounded-xl bg-white px-7 py-3.5 text-base font-semibold text-gray-900 shadow-md transition hover:bg-gray-100"
                         >
                             Book a Consultation
                         </Link>
 
                         <Link
                             href="/services"
-                            class="rounded-xl border border-white/70 px-6 py-3 font-medium text-white"
+                            class="rounded-xl border border-white/40 px-5 py-3 text-sm font-medium text-white/80 transition hover:border-white hover:bg-white/10 hover:text-white"
                         >
-                            View Services
+                            See How It Works
                         </Link>
                     </div>
                 </div>
             </div>
         </section>
 
-        <div class="mx-auto max-w-7xl space-y-20 px-2 py-16 md:px-4">
-            <section class="space-y-8">
-                <div class="mx-auto max-w-3xl space-y-4 text-center">
-                    <p
-                        class="text-sm font-semibold tracking-[0.18em] text-gray-500 uppercase"
-                    >
-                        Who We Help
-                    </p>
-
-                    <h2
-                        class="text-3xl font-semibold tracking-tight text-gray-900 md:text-4xl"
-                    >
-                        Real estate guidance for every stage of the journey
-                    </h2>
-
-                    <p
-                        class="text-base leading-relaxed text-gray-600 md:text-lg"
-                    >
-                        Whether you're buying your first property, preparing to
-                        sell, or planning your next move, Nojo helps you
-                        approach the process with more clarity and confidence.
-                    </p>
-                </div>
-
-                <div
-                    class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4"
-                >
-                    <Link
-                        v-for="tile in whoWeHelpTiles"
-                        :key="tile.title"
-                        :href="tile.href"
-                        class="flex aspect-[10/11] flex-col justify-between rounded-3xl bg-white p-7 shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-md"
-                    >
-                        <div class="space-y-3">
-                            <h3
-                                class="text-xl font-semibold tracking-tight text-gray-900"
-                            >
-                                {{ tile.title }}
-                            </h3>
-                            <p class="text-sm leading-relaxed text-gray-600">
-                                {{ tile.body }}
-                            </p>
-                        </div>
-                        <div class="pt-6 text-sm font-medium text-gray-900">
-                            {{ tile.kicker }}
-                        </div>
-                    </Link>
-                </div>
-            </section>
-
-            <section class="space-y-8">
-                <div class="mx-auto max-w-3xl space-y-4 text-center">
-                    <p
-                        class="text-sm font-semibold tracking-[0.18em] text-gray-500 uppercase"
-                    >
-                        {{ featuredRows[0].eyebrow }}
-                    </p>
-
-                    <h2
-                        class="text-3xl font-semibold tracking-tight text-gray-900 md:text-4xl"
-                    >
-                        {{ featuredRows[0].title }}
-                    </h2>
-
-                    <p
-                        class="text-base leading-relaxed text-gray-600 md:text-lg"
-                    >
-                        {{ featuredRows[0].description }}
-                    </p>
-                </div>
-
-                <div class="grid gap-6 lg:grid-cols-3">
-                    <div
-                        v-for="category in featuredRows[0].categories"
-                        :key="category.title"
-                        class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-black/5"
-                    >
-                        <div class="mb-4 flex items-baseline justify-between">
-                            <h3 class="text-base font-semibold text-gray-900">
-                                {{ category.title }}
-                            </h3>
-                            <Link
-                                :href="category.href"
-                                class="text-xs font-semibold text-gray-500 hover:text-gray-900"
-                            >
-                                View
-                            </Link>
-                        </div>
-
-                        <div class="space-y-3">
-                            <Link
-                                v-for="article in category.links"
-                                :key="article.title"
-                                :href="article.href"
-                                class="block rounded-2xl bg-stone-50 p-4 ring-1 ring-black/5 transition hover:bg-stone-100"
-                            >
-                                <div class="text-sm font-semibold text-gray-900">
-                                    {{ article.title }}
-                                </div>
-                                <div class="mt-1 text-xs text-gray-600">
-                                    {{ article.summary }}
-                                </div>
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <LeadSlotRenderer slotKey="home_intro" />
-
-            <section
-                class="rounded-3xl bg-stone-50 px-6 py-14 md:px-10 md:py-16"
-            >
-                <div class="mx-auto max-w-5xl space-y-10">
-                    <div class="max-w-2xl space-y-4">
-                        <p
-                            class="text-sm font-semibold tracking-[0.18em] text-gray-500 uppercase"
-                        >
-                            Services
+        <div class="space-y-14 py-14">
+            <section class="w-full">
+                <div class="mx-auto max-w-[90rem] px-6 py-20 md:px-10 md:py-22">
+                    <div class="mx-auto max-w-3xl space-y-4 text-center">
+                        <p class="text-sm font-semibold tracking-[0.18em] text-gray-500 uppercase">
+                            Who We Help
                         </p>
 
-                        <h2
-                            class="text-3xl font-semibold tracking-tight text-gray-900 md:text-4xl"
-                        >
-                            Focused guidance for every major real estate move
+                        <h2 class="text-3xl font-semibold text-gray-900 md:text-4xl">
+                            Guidance tailored to where you are right now
                         </h2>
 
-                        <p
-                            class="text-base leading-relaxed text-gray-600 md:text-lg"
-                        >
-                            Nojo offers clear, strategic support for buyers,
-                            sellers, and investors who want better direction
-                            before making important decisions.
+                        <p class="text-lg text-gray-600">
+                            No matter where you are in the process, you don’t need more information — you need to know what to do next.
                         </p>
                     </div>
 
-                    <div class="grid gap-5 md:grid-cols-2">
-                        <Link
-                            v-for="service in services"
-                            :key="service.title"
-                            :href="service.href"
-                            class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-md"
-                        >
-                            <h3 class="text-lg font-semibold text-gray-900">
-                                {{ service.title }}
-                            </h3>
-                            <p
-                                class="mt-2 text-sm leading-relaxed text-gray-600"
-                            >
-                                {{ service.body }}
-                            </p>
-                        </Link>
-                    </div>
-                </div>
-            </section>
-
-            <section class="space-y-8">
-                <div class="mx-auto max-w-3xl space-y-4 text-center">
-                    <p
-                        class="text-sm font-semibold tracking-[0.18em] text-gray-500 uppercase"
-                    >
-                        Why Nojo
-                    </p>
-
-                    <h2
-                        class="text-3xl font-semibold tracking-tight text-gray-900 md:text-4xl"
-                    >
-                        Clear guidance, grounded strategy, and real direction
-                    </h2>
-
-                    <p
-                        class="text-base leading-relaxed text-gray-600 md:text-lg"
-                    >
-                        Nojo is built to help clients move with more confidence
-                        by offering practical insight, thoughtful strategy, and
-                        honest support at every step.
-                    </p>
-                </div>
-
-                <div class="mx-auto max-w-5xl">
-                    <div
-                        class="rounded-3xl bg-white px-6 py-8 shadow-sm ring-1 ring-black/5 md:px-8"
-                    >
-                        <div class="space-y-4">
+                    <div class="mt-14">
+                        <div class="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
                             <div
-                                v-for="point in whyNojoPoints"
-                                :key="point.text"
-                                class="flex items-start gap-4"
+                                class="group rounded-2xl border border-green-900/10 bg-white p-6 transition duration-300 hover:-translate-y-[3px] hover:border-green-900/20 hover:shadow-lg"
+                                @mouseenter="activeWhoWeHelp = 'buying'"
+                                @mouseleave="activeWhoWeHelp = null"
+                                @focusin="activeWhoWeHelp = 'buying'"
+                                @focusout="activeWhoWeHelp = null"
                             >
-                                <span
-                                    class="mt-0.5 text-base text-gray-400/70"
-                                    aria-hidden="true"
-                                >
-                                    {{ point.icon }}
-                                </span>
+                                <h3 class="text-lg font-semibold text-green-900">
+                                    Buying
+                                </h3>
 
-                                <p class="text-base font-medium text-gray-900">
-                                    {{ point.text }}
+                                <p class="mt-4 text-sm leading-relaxed text-gray-600">
+                                    Know what to look for, what to avoid, and how to move forward with confidence.
                                 </p>
+
+                                <div class="mt-8">
+                                    <Link
+                                        href="/buyers-strategy"
+                                        class="text-sm font-medium text-gray-900 transition hover:text-green-900"
+                                    >
+                                        Start with buying →
+                                    </Link>
+                                </div>
+                            </div>
+
+                            <div
+                                class="group rounded-2xl border border-gray-200 bg-white p-6 transition duration-300 hover:-translate-y-[3px] hover:border-green-900/20 hover:shadow-lg"
+                                @mouseenter="activeWhoWeHelp = 'selling'"
+                                @mouseleave="activeWhoWeHelp = null"
+                                @focusin="activeWhoWeHelp = 'selling'"
+                                @focusout="activeWhoWeHelp = null"
+                            >
+                                <h3 class="text-lg font-semibold text-green-900">
+                                    Selling
+                                </h3>
+
+                                <p class="mt-4 text-sm leading-relaxed text-gray-600">
+                                    Understand how to position, price, and prepare your property before it hits the market.
+                                </p>
+
+                                <div class="mt-8">
+                                    <Link
+                                        href="/sellers-strategy"
+                                        class="text-sm font-medium text-gray-900 transition hover:text-green-900"
+                                    >
+                                        Plan your sale →
+                                    </Link>
+                                </div>
+                            </div>
+
+                            <div
+                                class="group rounded-2xl border border-gray-200 bg-white p-6 transition duration-300 hover:-translate-y-[3px] hover:border-green-900/20 hover:shadow-lg"
+                                @mouseenter="activeWhoWeHelp = 'renting'"
+                                @mouseleave="activeWhoWeHelp = null"
+                                @focusin="activeWhoWeHelp = 'renting'"
+                                @focusout="activeWhoWeHelp = null"
+                            >
+                                <h3 class="text-lg font-semibold text-green-900">
+                                    Renting
+                                </h3>
+
+                                <p class="mt-4 text-sm leading-relaxed text-gray-600">
+                                    Make smarter decisions before committing to your next place.
+                                </p>
+
+                                <div class="mt-8">
+                                    <Link
+                                        href="/blog?category=renting"
+                                        class="text-sm font-medium text-gray-900 transition hover:text-green-900"
+                                    >
+                                        Explore renting →
+                                    </Link>
+                                </div>
+                            </div>
+
+                            <div
+                                class="group rounded-2xl border border-gray-200 bg-white p-6 transition duration-300 hover:-translate-y-[3px] hover:border-green-900/20 hover:shadow-lg"
+                                @mouseenter="activeWhoWeHelp = 'investing'"
+                                @mouseleave="activeWhoWeHelp = null"
+                                @focusin="activeWhoWeHelp = 'investing'"
+                                @focusout="activeWhoWeHelp = null"
+                            >
+                                <h3 class="text-lg font-semibold text-green-900">
+                                    Investing
+                                </h3>
+
+                                <p class="mt-4 text-sm leading-relaxed text-gray-600">
+                                    Understand opportunities, risks, and timing before putting money into the market.
+                                </p>
+
+                                <div class="mt-8">
+                                    <Link
+                                        href="/blog?category=investing"
+                                        class="text-sm font-medium text-gray-900 transition hover:text-green-900"
+                                    >
+                                        Understand investing →
+                                    </Link>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+                            <div class="flex min-h-[120px] items-center justify-center">
+                                <img
+                                    :src="buyingIcon"
+                                    alt=""
+                                    class="h-28 w-28 md:h-32 md:w-32 transition-opacity duration-200 ease-out"
+                                    :class="activeWhoWeHelp === 'buying' ? 'opacity-20' : 'opacity-0'"
+                                />
+                            </div>
+
+                            <div class="flex min-h-[120px] items-center justify-center">
+                                <img
+                                    :src="sellingIcon"
+                                    alt=""
+                                    class="h-28 w-28 md:h-32 md:w-32 transition-opacity duration-200 ease-out"
+                                    :class="activeWhoWeHelp === 'selling' ? 'opacity-20' : 'opacity-0'"
+                                />
+                            </div>
+
+                            <div class="flex min-h-[120px] items-center justify-center">
+                                <img
+                                    :src="rentingIcon"
+                                    alt=""
+                                    class="h-28 w-28 md:h-32 md:w-32 transition-opacity duration-200 ease-out"
+                                    :class="activeWhoWeHelp === 'renting' ? 'opacity-20' : 'opacity-0'"
+                                />
+                            </div>
+
+                            <div class="flex min-h-[120px] items-center justify-center">
+                                <img
+                                    :src="investingIcon"
+                                    alt=""
+                                    class="h-28 w-28 md:h-32 md:w-32 transition-opacity duration-200 ease-out"
+                                    :class="activeWhoWeHelp === 'investing' ? 'opacity-20' : 'opacity-0'"
+                                />
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <section class="space-y-8">
-                <div class="mx-auto max-w-3xl space-y-4 text-center">
-                    <p
-                        class="text-sm font-semibold tracking-[0.18em] text-gray-500 uppercase"
-                    >
-                        {{ featuredRows[1].eyebrow }}
-                    </p>
+            <section class="w-full bg-white py-20 md:py-22">
+                <div class="mx-auto max-w-[96rem] px-6 md:px-10">
+                    <div class="mb-8 flex items-end justify-between gap-4">
+                        <div class="space-y-2">
+                            <p class="text-sm font-semibold uppercase tracking-[0.18em] text-green-900/70">
+                                Featured Articles
+                            </p>
 
-                    <h2
-                        class="text-3xl font-semibold tracking-tight text-gray-900 md:text-4xl"
-                    >
-                        {{ featuredRows[1].title }}
-                    </h2>
-
-                    <p
-                        class="text-base leading-relaxed text-gray-600 md:text-lg"
-                    >
-                        {{ featuredRows[1].description }}
-                    </p>
-                </div>
-
-                <div class="grid gap-6 lg:grid-cols-3">
-                    <div
-                        v-for="category in featuredRows[1].categories"
-                        :key="category.title"
-                        class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-black/5"
-                    >
-                        <div class="mb-4 flex items-baseline justify-between">
-                            <h3 class="text-base font-semibold text-gray-900">
-                                {{ category.title }}
-                            </h3>
-                            <Link
-                                :href="category.href"
-                                class="text-xs font-semibold text-gray-500 hover:text-gray-900"
-                            >
-                                View
-                            </Link>
+                            <h2 class="text-3xl font-semibold tracking-tight text-gray-900 md:text-4xl">
+                                Strong starting points
+                            </h2>
                         </div>
 
-                        <div class="space-y-3">
-                            <Link
-                                v-for="article in category.links"
-                                :key="article.title"
-                                :href="article.href"
-                                class="block rounded-2xl bg-stone-50 p-4 ring-1 ring-black/5 transition hover:bg-stone-100"
+                        <div class="hidden items-center gap-2 md:flex">
+                            <button
+                                type="button"
+                                @click="scrollFeatured(-1)"
+                                class="inline-flex h-11 w-11 items-center justify-center rounded-full border border-green-900/15 bg-white text-green-900 transition hover:border-green-900/25 hover:bg-green-50"
+                                aria-label="Previous featured categories"
                             >
-                                <div class="text-sm font-semibold text-gray-900">
-                                    {{ article.title }}
+                                ←
+                            </button>
+
+                            <button
+                                type="button"
+                                @click="scrollFeatured(1)"
+                                class="inline-flex h-11 w-11 items-center justify-center rounded-full border border-green-900/15 bg-white text-green-900 transition hover:border-green-900/25 hover:bg-green-50"
+                                aria-label="Next featured categories"
+                            >
+                                →
+                            </button>
+                        </div>
+                    </div>
+
+                    <div ref="featuredViewport" class="overflow-hidden">
+                        <div
+                            class="flex will-change-transform"
+                            :style="featuredTrackStyle"
+                            @transitionend="handleFeaturedTransitionEnd"
+                        >
+                            <div
+                                v-for="(category, index) in denseFeaturedCategories"
+                                :key="`${category.key}-${index}`"
+                                data-featured-card
+                                class="w-[20rem] shrink-0 rounded-3xl border border-green-950/20 bg-green-950 p-5 text-white shadow-sm transition duration-300 hover:-translate-y-[3px] hover:shadow-xl md:w-[21rem] xl:w-[22rem]"
+                            >
+                                <div class="flex items-start justify-between gap-4">
+                                    <div>
+                                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-green-300/90">
+                                            Category
+                                        </p>
+
+                                        <h3 class="mt-2 text-xl font-semibold tracking-tight text-white">
+                                            {{ category.title }}
+                                        </h3>
+                                    </div>
+
+                                    <Link
+                                        :href="category.href"
+                                        class="text-sm font-medium text-green-200 transition hover:text-white"
+                                    >
+                                        View all →
+                                    </Link>
                                 </div>
-                                <div class="mt-1 text-xs text-gray-600">
-                                    {{ article.summary }}
+
+                                <div class="mt-5 space-y-3">
+                                    <Link
+                                        v-for="article in category.articles"
+                                        :key="article.id ?? article.title"
+                                        :href="article.href"
+                                        class="group flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 transition duration-300 hover:border-white/20 hover:bg-white/10"
+                                    >
+                                        <img
+                                            :src="article.image_url || '/images/blog/default-thumb.jpg'"
+                                            :alt="article.title"
+                                            class="h-14 w-14 shrink-0 rounded-lg object-cover"
+                                        />
+
+                                        <div class="min-w-0">
+                                            <p class="line-clamp-2 text-sm font-medium leading-5 text-white transition group-hover:text-green-200">
+                                                {{ article.title }}
+                                            </p>
+                                        </div>
+                                    </Link>
+
+                                    <div
+                                        v-if="!category.articles.length"
+                                        class="rounded-2xl border border-dashed border-white/15 bg-white/5 px-4 py-5 text-sm text-white/65"
+                                    >
+                                        No articles available in this category yet.
+                                    </div>
                                 </div>
-                            </Link>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 flex gap-2 md:hidden">
+                        <button
+                            type="button"
+                            @click="scrollFeatured(-1)"
+                            class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-green-900/15 bg-white text-green-900 transition hover:border-green-900/25 hover:bg-green-50"
+                            aria-label="Previous featured categories"
+                        >
+                            ←
+                        </button>
+
+                        <button
+                            type="button"
+                            @click="scrollFeatured(1)"
+                            class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-green-900/15 bg-white text-green-900 transition hover:border-green-900/25 hover:bg-green-50"
+                            aria-label="Next featured categories"
+                        >
+                            →
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="w-full">
+                <div class="mx-auto max-w-7xl px-6 py-20 md:px-10 md:py-22">
+                    <div class="space-y-8">
+                        <div class="mx-auto max-w-3xl space-y-4 text-center">
+                            <p
+                                class="text-sm font-semibold tracking-[0.18em] text-green-900/70 uppercase"
+                            >
+                                Why Nojo
+                            </p>
+
+                            <h2
+                                class="text-3xl font-semibold tracking-tight text-gray-900 md:text-4xl"
+                            >
+                                Clear guidance, grounded strategy, and real direction
+                            </h2>
+
+                            <p
+                                class="text-base leading-relaxed text-gray-600 md:text-lg"
+                            >
+                                Nojo is built for people who want clarity before they commit — not after they’ve already made a costly decision.
+                            </p>
+                        </div>
+
+                        <div class="mx-auto max-w-5xl">
+                            <div
+                                class="rounded-3xl bg-white px-6 py-10 shadow-sm ring-1 ring-green-900/10 transition duration-300 hover:ring-green-900/20 md:px-8"
+                            >
+                                <div class="space-y-5">
+                                    <div
+                                v-for="point in whyNojoPoints"
+                                        :key="point.text"
+                                        class="flex items-start gap-4"
+                                    >
+                                        <span
+                                            class="mt-[6px] h-[6px] w-[6px] rounded-full bg-green-900/70"
+                                            aria-hidden="true"
+                                        ></span>
+
+                                        <p class="text-base font-medium text-gray-900">
+                                            {{ point.text }}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <LeadSlotRenderer slotKey="home_mid" />
-
-            <section class="space-y-8">
-                <div class="mx-auto max-w-3xl space-y-4 text-center">
-                    <p
-                        class="text-sm font-semibold tracking-[0.18em] text-gray-500 uppercase"
-                    >
-                        Insights
-                    </p>
-
-                    <h2
-                        class="text-3xl font-semibold tracking-tight text-gray-900 md:text-4xl"
-                    >
-                        Real Estate Insights & Guidance
-                    </h2>
-
-                    <p
-                        class="text-base leading-relaxed text-gray-600 md:text-lg"
-                    >
-                        Helpful articles and practical guidance for buyers,
-                        sellers, and anyone trying to better understand the New
-                        Jersey real estate market.
-                    </p>
+            <section class="w-full">
+                <div class="mx-auto max-w-[90rem] px-6 md:px-10">
+                    <LeadSlotRenderer slotKey="home_mid" />
                 </div>
+            </section>
 
-                <div class="mx-auto grid max-w-6xl gap-6 md:grid-cols-3">
-                    <Link
+            <section class="w-full">
+                <div class="mx-auto max-w-[90rem] px-6 py-20 md:px-10 md:py-22">
+                    <div class="space-y-8">
+                        <div class="mx-auto max-w-3xl space-y-4 text-center">
+                            <p
+                                class="text-sm font-semibold tracking-[0.18em] text-gray-500 uppercase"
+                            >
+                                Insights
+                            </p>
+
+                            <h2
+                                class="text-3xl font-semibold tracking-tight text-gray-900 md:text-4xl"
+                            >
+                                Real Estate Insights & Guidance
+                            </h2>
+
+                            <p
+                                class="text-base leading-relaxed text-gray-600 md:text-lg"
+                            >
+                                Clear, practical insights designed to help you think better, avoid mistakes, and move with confidence.
+                            </p>
+                        </div>
+
+                        <div class="mx-auto grid max-w-[90rem] gap-6 md:grid-cols-3">
+                            <Link
                         v-for="item in insights"
-                        :key="item.title"
-                        :href="item.href"
-                        class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-md"
-                    >
-                        <h3
-                            class="mb-3 text-xl font-semibold tracking-tight text-gray-900"
-                        >
-                            {{ item.title }}
-                        </h3>
-                        <p class="leading-relaxed text-gray-600">
-                            {{ item.body }}
-                        </p>
-                    </Link>
+                                :key="item.title"
+                                :href="item.href"
+                                class="group rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition duration-300 hover:-translate-y-[3px] hover:border-green-900/20 hover:shadow-lg"
+                            >
+                                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-green-900">
+                                    {{ item.label }}
+                                </p>
+
+                                <h3
+                                    class="mt-3 text-2xl font-semibold tracking-tight text-gray-900 transition group-hover:text-green-900"
+                                >
+                                    {{ item.title }}
+                                </h3>
+
+                                <p class="mt-4 leading-relaxed text-gray-600">
+                                    {{ item.body }}
+                                </p>
+
+                                <div class="mt-6">
+                                    <span class="text-sm font-medium text-gray-900 transition group-hover:text-green-900">
+                                        {{ item.cta }}
+                                    </span>
+                                </div>
+                            </Link>
+                        </div>
+                    </div>
                 </div>
             </section>
         </div>

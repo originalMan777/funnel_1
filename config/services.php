@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'mailchimp' => [
+        'api_key' => env('MAILCHIMP_API_KEY'),
+        'server_prefix' => env('MAILCHIMP_SERVER_PREFIX'),
+        'timeout' => (int) env('MAILCHIMP_TIMEOUT', 10),
+    ],
+
 ];

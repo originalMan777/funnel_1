@@ -188,7 +188,15 @@ class BlogDummyContentSeeder extends Seeder
             ],
         ];
 
-        foreach ($posts as $index => $definition) {
+            $expandedPosts = [];
+
+            for ($i = 0; $i < 2; $i++) {
+                foreach ($posts as $post) {
+                    $expandedPosts[] = $post;
+                }
+            }
+
+            foreach ($expandedPosts as $index => $definition) {
             $title = $definition['title'];
             $slug = Str::slug($title);
             $category = $categories[$definition['category']];
@@ -233,14 +241,41 @@ class BlogDummyContentSeeder extends Seeder
     }
 
     private function buildContent(string $title, string $angle, string $categoryName): string
-    {
-        $paragraphs = [
-            "<p>{$angle}</p>",
-            '<p>This dummy article is here to help you test the blog flow with realistic structure instead of empty placeholders. It is written to feel like a real post summary, with enough body to create excerpts, card snippets, and page rhythm while you refine the design.</p>',
-            "<p>Inside a {$categoryName} context, the goal is usually the same: make the message easier to understand, make the value easier to trust, and make the next step feel more natural. That combination is what turns a decent-looking page into something that feels deliberate.</p>",
-            "<p>{$title} works best as part of a wider content system. One strong article can help, but a sequence of useful posts builds familiarity, improves discoverability, and gives visitors more reasons to keep exploring.</p>",
-        ];
+{
+    $paragraph = fn($text) => "<p>{$text}</p>";
 
-        return implode("\n\n", $paragraphs);
+    $content = "";
+
+    // 🔥 INTRO
+    $content .= $paragraph($angle);
+
+    // 🔥 LONG BODY (THIS FIXES EVERYTHING)
+    for ($i = 0; $i < 14; $i++) {
+        $content .= $paragraph(
+            "In the {$categoryName} space, clarity is one of the biggest advantages a business can have.
+            {$title} highlights how structure, positioning, and communication all come together to shape how a visitor experiences a page.
+
+            When content is intentional, it becomes easier for users to follow, easier to trust, and easier to act on.
+            This is especially important when testing systems that rely on content depth, such as inline lead slots and conversion triggers.
+
+            Most businesses underestimate sequencing. The order of ideas, the pacing of content, and how information unfolds
+            directly impact engagement. Strong content is not just informative—it is directional.
+
+            This article is intentionally extended to simulate real-world blog behavior. It ensures that mid-content systems like
+            lead slots, inline offers, and conversion triggers activate properly.
+
+            {$categoryName} content benefits from repetition with variation. Reinforcing ideas from different angles creates
+            understanding, and understanding drives action.
+
+            This paragraph helps simulate scroll depth, ensuring that your layout, spacing, and slot injection logic can be tested accurately."
+        );
     }
+
+    // 🔥 OUTRO
+    $content .= $paragraph(
+        "Ultimately, {$title} is part of a larger system. When content is structured properly, it does more than inform—it guides, positions, and converts."
+    );
+
+    return $content;
+}
 }

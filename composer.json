@@ -1,6 +1,6 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/vue-starter-kit",
+    "name": "funnel_1/app",
     "type": "project",
     "description": "The skeleton application for the Laravel framework.",
     "keywords": [

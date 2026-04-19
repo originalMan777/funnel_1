@@ -16,10 +16,12 @@ class SecurityAuditLoggerTest extends TestCase
 
     public function test_logger_persists_audit_rows_and_writes_to_the_log_channel(): void
     {
-        Log::shouldReceive('channel')->once()->with(config('logging.default'))->andReturnSelf();
+        Log::shouldReceive('channel')->once()->with('security_audit')->andReturnSelf();
         Log::shouldReceive('info')->once()->withArgs(function (string $message, array $context): bool {
             return $message === 'security_audit_event'
-                && $context['event'] === 'audit_test_event'
+                && $context['event'] === 'security_audit_event'
+                && $context['domain'] === 'security_audit'
+                && $context['reason'] === 'audit_test_event'
                 && $context['entity_type'] === 'popup_lead'
                 && $context['entity_id'] === 42;
         });

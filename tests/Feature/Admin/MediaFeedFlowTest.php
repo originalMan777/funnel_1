@@ -6,11 +6,13 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
+use Tests\Concerns\UsesIsolatedMediaRoot;
 use Tests\TestCase;
 
 class MediaFeedFlowTest extends TestCase
 {
     use RefreshDatabase;
+    use UsesIsolatedMediaRoot;
 
     private string $imagesRoot;
 
@@ -20,21 +22,12 @@ class MediaFeedFlowTest extends TestCase
     {
         parent::setUp();
 
-        $this->imagesRoot = public_path('images');
+        $this->setUpIsolatedMediaRoot();
+        $this->imagesRoot = $this->isolatedImagesRoot();
 
         File::ensureDirectoryExists($this->imagesRoot);
         File::ensureDirectoryExists($this->imagesRoot . DIRECTORY_SEPARATOR . 'blog');
         File::ensureDirectoryExists($this->imagesRoot . DIRECTORY_SEPARATOR . $this->customFolder);
-    }
-
-    protected function tearDown(): void
-    {
-        File::deleteDirectory($this->imagesRoot . DIRECTORY_SEPARATOR . $this->customFolder);
-        File::delete($this->imagesRoot . DIRECTORY_SEPARATOR . 'feed-root-proof.png');
-        File::delete($this->imagesRoot . DIRECTORY_SEPARATOR . 'blog' . DIRECTORY_SEPARATOR . 'feed-blog-proof.png');
-        File::delete($this->imagesRoot . DIRECTORY_SEPARATOR . 'blog' . DIRECTORY_SEPARATOR . 'fresh-feed-proof.png');
-
-        parent::tearDown();
     }
 
     public function test_guests_are_redirected_and_non_admin_users_are_forbidden_from_media_feed(): void

@@ -11,6 +11,10 @@ use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
 {
+    private static ?bool $leadTablesReady = null;
+
+    private static ?bool $popupTableReady = null;
+
     /**
      * The root template that's loaded on the first page visit.
      *
@@ -35,6 +39,7 @@ class HandleInertiaRequests extends Middleware
                 'success' => fn () => $request->session()->get('success'),
                 'popupLeadSuccess' => fn () => $request->session()->get('popupLeadSuccess'),
             ],
+            'siteContent' => config('site_content'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'popupManager' => fn () => $this->resolvePopupManager($request),
             'leadSlots' => fn () => $this->resolveLeadSlots($request),
@@ -57,7 +62,11 @@ class HandleInertiaRequests extends Middleware
 
     private function leadTablesAreReady(): bool
     {
-        return Schema::hasTable('lead_slots')
+        if (self::$leadTablesReady !== null) {
+            return self::$leadTablesReady;
+        }
+
+        return self::$leadTablesReady = Schema::hasTable('lead_slots')
             && Schema::hasTable('lead_assignments')
             && Schema::hasTable('lead_boxes');
     }
@@ -81,20 +90,51 @@ class HandleInertiaRequests extends Middleware
         }
 
         $popups = Popup::query()
+            ->select([
+                'id',
+                'name',
+                'slug',
+                'type',
+                'role',
+                'priority',
+                'eyebrow',
+                'headline',
+                'body',
+                'cta_text',
+                'success_message',
+                'layout',
+                'trigger_type',
+                'trigger_delay',
+                'trigger_scroll',
+                'target_pages',
+                'device',
+                'frequency',
+                'audience',
+                'suppress_if_lead_captured',
+                'suppression_scope',
+                'form_fields',
+                'lead_type',
+                'post_submit_action',
+                'post_submit_redirect_url',
+            ])
             ->where('is_active', true)
+            ->where(function ($query) use ($pageKey) {
+                $query->whereNull('target_pages')
+                    ->orWhereJsonLength('target_pages', 0)
+                    ->orWhereJsonContains('target_pages', $pageKey);
+            })
+            ->where(function ($query) use ($isAuthenticated) {
+                $allowedAudiences = $isAuthenticated
+                    ? ['everyone', 'authenticated']
+                    : ['everyone', 'guests'];
+
+                $query->whereNull('audience')
+                    ->orWhereIn('audience', $allowedAudiences);
+            })
             ->orderBy('priority')
             ->latest('updated_at')
             ->get()
-            ->filter(function (Popup $popup) use ($pageKey, $leadCaptured, $isAuthenticated, $request): bool {
-                $targets = $popup->target_pages ?? [];
-                if (! empty($targets) && ! in_array($pageKey, $targets, true)) {
-                    return false;
-                }
-
-                if (! $this->passesAudienceRule($popup, $isAuthenticated)) {
-                    return false;
-                }
-
+            ->filter(function (Popup $popup) use ($leadCaptured, $request): bool {
                 if ($popup->suppress_if_lead_captured && $leadCaptured) {
                     return false;
                 }
@@ -143,28 +183,23 @@ class HandleInertiaRequests extends Middleware
         ];
     }
 
-    private function passesAudienceRule(Popup $popup, bool $isAuthenticated): bool
-    {
-        return match ($popup->audience) {
-            'authenticated' => $isAuthenticated,
-            'guests' => ! $isAuthenticated,
-            default => true,
-        };
-    }
-
     private function popupTableIsReady(): bool
     {
+        if (self::$popupTableReady !== null) {
+            return self::$popupTableReady;
+        }
+
         if (! Schema::hasTable('popups')) {
-            return false;
+            return self::$popupTableReady = false;
         }
 
         foreach (['role', 'priority', 'audience', 'suppress_if_lead_captured', 'suppression_scope', 'post_submit_action'] as $column) {
             if (! Schema::hasColumn('popups', $column)) {
-                return false;
+                return self::$popupTableReady = false;
             }
         }
 
-        return true;
+        return self::$popupTableReady = true;
     }
 
     private function popupSpecificCookieKey(Popup $popup, Request $request): ?string
@@ -177,36 +212,49 @@ class HandleInertiaRequests extends Middleware
     private function resolvePopupPageKey(Request $request): ?string
     {
         $routeName = $request->route()?->getName();
+        $excludedRoutePrefixes = config('public_pages.excluded_route_prefixes', []);
+        $excludedRouteNames = config('public_pages.excluded_route_names', []);
+        $routeNameKeys = config('public_pages.route_name_keys', []);
+        $routePrefixKeys = config('public_pages.route_prefix_keys', []);
+        $pathKeys = config('public_pages.path_keys', []);
+        $pathPrefixKeys = config('public_pages.path_prefix_keys', []);
 
         if ($routeName) {
-            if (str_starts_with($routeName, 'admin.') || in_array($routeName, ['dashboard', 'login', 'register'], true)) {
+            foreach ($excludedRoutePrefixes as $excludedRoutePrefix) {
+                if (str_starts_with($routeName, $excludedRoutePrefix)) {
+                    return null;
+                }
+            }
+
+            if (in_array($routeName, $excludedRouteNames, true)) {
                 return null;
             }
 
-            return match (true) {
-                $routeName === 'home' => 'home',
-                $routeName === 'about' => 'about',
-                $routeName === 'services' => 'services',
-                $routeName === 'buyers' => 'buyers',
-                $routeName === 'sellers' => 'sellers',
-                $routeName === 'consultation' => 'consultation',
-                $routeName === 'resources' => 'resources',
-                $routeName === 'contact' => 'contact',
-                str_starts_with($routeName, 'blog.') => 'blog',
-                default => null,
-            };
+            if (array_key_exists($routeName, $routeNameKeys)) {
+                return $routeNameKeys[$routeName];
+            }
+
+            foreach ($routePrefixKeys as $routePrefix => $pageKey) {
+                if (str_starts_with($routeName, $routePrefix)) {
+                    return $pageKey;
+                }
+            }
+
+            return null;
         }
 
-        return match ($request->path()) {
-            '/', '' => 'home',
-            'about' => 'about',
-            'services' => 'services',
-            'buyers' => 'buyers',
-            'sellers' => 'sellers',
-            'consultation' => 'consultation',
-            'resources' => 'resources',
-            'contact' => 'contact',
-            default => str_starts_with($request->path(), 'blog') ? 'blog' : null,
-        };
+        $path = $request->path();
+
+        if (array_key_exists($path, $pathKeys)) {
+            return $pathKeys[$path];
+        }
+
+        foreach ($pathPrefixKeys as $pathPrefix => $pageKey) {
+            if (str_starts_with($path, $pathPrefix)) {
+                return $pageKey;
+            }
+        }
+
+        return null;
     }
 }

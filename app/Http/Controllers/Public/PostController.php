@@ -5,23 +5,21 @@ namespace App\Http\Controllers\Public;
 use App\Http\Controllers\Controller;
 use App\Models\BlogIndexSection;
 use App\Models\Category;
-use App\Models\LeadSlot;
 use App\Models\Post;
 use App\Models\Tag;
+use App\Services\LeadSlots\LeadSlotResolver;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class PostController extends Controller
 {
-    private const BLOG_SHOW_INLINE_SLOT_KEYS = [
-        'blog_post_inline_1',
-        'blog_post_inline_2',
-        'blog_post_inline_3',
-        'blog_post_inline_4',
-    ];
+    public function __construct(
+        private readonly LeadSlotResolver $leadSlotResolver,
+    ) {
+    }
 
     public function index(Request $request)
     {
@@ -108,66 +106,22 @@ class PostController extends Controller
             $posts = (clone $baseQuery)
                 ->paginate(18)
                 ->withQueryString();
-
-            $posts->setCollection(
-                $posts->getCollection()->map(fn (Post $post) => $this->mapPostCard($post))
-            );
         } else {
-            $priorityQuery = Post::query()
+            $posts = Post::query()
                 ->published()
                 ->with(['category:id,name,slug'])
-                ->orderByDesc('published_at')
-                ->select($baseSelect)
-                ->where(function ($query) use ($focusCategory, $focusTag) {
-                    if ($focusCategory) {
-                        $query->where('category_id', $focusCategory->id);
-                    }
-
-                    if ($focusTag) {
-                        if ($focusCategory) {
-                            $query->orWhereHas('tags', fn ($tagQuery) => $tagQuery->where('tags.id', $focusTag->id));
-                        } else {
-                            $query->whereHas('tags', fn ($tagQuery) => $tagQuery->where('tags.id', $focusTag->id));
-                        }
-                    }
-                });
-
-            $priorityPosts = $priorityQuery->get();
-
-            $fallbackQuery = Post::query()
-                ->published()
-                ->with(['category:id,name,slug'])
-                ->orderByDesc('published_at')
                 ->select($baseSelect);
 
-            if ($priorityPosts->isNotEmpty()) {
-                $fallbackQuery->whereNotIn('id', $priorityPosts->pluck('id'));
-            }
+            $this->applyFilteredIndexOrdering($posts, $focusCategory, $focusTag);
 
-            $fallbackPosts = $fallbackQuery->get();
-
-            $orderedPosts = $priorityPosts
-                ->concat($fallbackPosts)
-                ->values();
-
-            $perPage = 18;
-            $currentPage = LengthAwarePaginator::resolveCurrentPage();
-            $currentItems = $orderedPosts
-                ->slice(($currentPage - 1) * $perPage, $perPage)
-                ->values()
-                ->map(fn (Post $post) => $this->mapPostCard($post));
-
-            $posts = new LengthAwarePaginator(
-                $currentItems,
-                $orderedPosts->count(),
-                $perPage,
-                $currentPage,
-                [
-                    'path' => $request->url(),
-                    'query' => $request->query(),
-                ]
-            );
+            $posts = $posts
+                ->paginate(18)
+                ->withQueryString();
         }
+
+        $posts->setCollection(
+            $posts->getCollection()->map(fn (Post $post) => $this->mapPostCard($post))
+        );
 
         return Inertia::render('Blog/Index', [
             'posts' => $posts,
@@ -177,14 +131,37 @@ class PostController extends Controller
                 'left' => $clusterLeft,
                 'right' => $clusterRight,
             ],
-            'leadSlots' => [
-                'blog_index_mid_lead' => [
-                    'type' => 'offer',
-                    'variant' => 'default',
-                    'enabled' => true,
-                ],
-            ],
+            'leadSlots' => $this->leadSlotResolver->resolve('blog_index'),
         ]);
+    }
+
+    private function applyFilteredIndexOrdering(Builder $query, ?Category $focusCategory, ?Tag $focusTag): void
+    {
+        $priorityClauses = [];
+        $priorityBindings = [];
+
+        if ($focusCategory) {
+            $priorityClauses[] = 'posts.category_id = ?';
+            $priorityBindings[] = $focusCategory->id;
+        }
+
+        if ($focusTag) {
+            $priorityClauses[] = 'exists (
+                select 1
+                from post_tag
+                where post_tag.post_id = posts.id
+                  and post_tag.tag_id = ?
+            )';
+            $priorityBindings[] = $focusTag->id;
+        }
+
+        $query
+            ->orderByRaw(
+                'case when ' . implode(' or ', $priorityClauses) . ' then 0 else 1 end asc',
+                $priorityBindings,
+            )
+            ->orderByDesc('published_at')
+            ->orderByDesc('id');
     }
 
     public function show(string $slug)
@@ -267,7 +244,7 @@ class PostController extends Controller
                     ],
                 ],
             ],
-            'leadSlots' => $this->resolveBlogShowLeadSlots($post),
+            'leadSlots' => $this->leadSlotResolver->resolve('blog_show'),
             'relatedPosts' => $relatedPosts,
             'previousPost' => $previousPost
                 ? [
@@ -512,50 +489,6 @@ class PostController extends Controller
         }
 
         return $next;
-    }
-
-    private function resolveBlogShowLeadSlots(Post $post): array
-    {
-        $slotKeys = [
-            ...self::BLOG_SHOW_INLINE_SLOT_KEYS,
-            'blog_post_before_related',
-        ];
-
-        return collect($slotKeys)
-            ->mapWithKeys(fn (string $slotKey) => [
-                $slotKey => $this->resolveLeadSlotRenderModel($slotKey, $post),
-            ])
-            ->all();
-    }
-
-    private function resolveLeadSlotRenderModel(string $slotKey, Post $post): ?array
-    {
-        $slot = LeadSlot::query()
-            ->with('assignment.leadBox')
-            ->where('key', $slotKey)
-            ->first();
-
-        if (! $slot || ! $slot->is_enabled || ! $slot->assignment || ! $slot->assignment->leadBox) {
-            return null;
-        }
-
-        $leadBox = $slot->assignment->leadBox;
-
-        return [
-            'leadBoxId' => $leadBox->id,
-            'type' => $leadBox->type,
-            'title' => $slot->assignment->override_title ?: $leadBox->title,
-            'shortText' => $slot->assignment->override_short_text ?: $leadBox->short_text,
-            'buttonText' => $slot->assignment->override_button_text ?: $leadBox->button_text,
-            'iconKey' => $leadBox->icon_key,
-            'content' => $leadBox->content ?? [],
-            'context' => [
-                'slotKey' => $slot->key,
-                'pageKey' => 'blog_show',
-                'postId' => $post->id,
-                'postSlug' => $post->slug,
-            ],
-        ];
     }
 
     private function buildSectionPayload(?BlogIndexSection $section, int $limit, array &$usedIds): ?array

@@ -8,11 +8,13 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
+use Tests\Concerns\UsesIsolatedMediaRoot;
 use Tests\TestCase;
 
 class PostEditorLocalPreviewVsSavedMediaTest extends TestCase
 {
     use RefreshDatabase;
+    use UsesIsolatedMediaRoot;
 
     private string $blogImagesRoot;
 
@@ -20,7 +22,8 @@ class PostEditorLocalPreviewVsSavedMediaTest extends TestCase
     {
         parent::setUp();
 
-        $this->blogImagesRoot = public_path('images/blog');
+        $this->setUpIsolatedMediaRoot();
+        $this->blogImagesRoot = $this->isolatedBlogImagesRoot();
 
         File::ensureDirectoryExists($this->blogImagesRoot);
     }
@@ -87,7 +90,7 @@ class PostEditorLocalPreviewVsSavedMediaTest extends TestCase
         $category = Category::factory()->create();
         $existingPath = '/images/blog/existing-saved-library.png';
 
-        File::put($this->blogImagesRoot . DIRECTORY_SEPARATOR . 'existing-saved-library.png', 'saved-image');
+        $this->putTinyPng($this->blogImagesRoot . DIRECTORY_SEPARATOR . 'existing-saved-library.png');
 
         $feedPaths = collect(
             $this->actingAs($admin)->getJson(route('admin.media.feed', [

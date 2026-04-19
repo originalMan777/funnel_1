@@ -44,14 +44,14 @@ class SchemaAssumptionTest extends TestCase
             Post::factory()->create(['slug' => 'unique-post']);
             $this->fail('Expected duplicate post slug to fail.');
         } catch (QueryException $exception) {
-            $this->assertTrue(true);
+            $this->assertNotEmpty($exception->getMessage());
         }
 
         try {
             Popup::factory()->create(['slug' => 'unique-popup']);
             $this->fail('Expected duplicate popup slug to fail.');
         } catch (QueryException $exception) {
-            $this->assertTrue(true);
+            $this->assertNotEmpty($exception->getMessage());
         }
     }
 
@@ -73,7 +73,7 @@ class SchemaAssumptionTest extends TestCase
             ]);
             $this->fail('Expected duplicate lead slot assignment to fail.');
         } catch (QueryException $exception) {
-            $this->assertTrue(true);
+            $this->assertNotEmpty($exception->getMessage());
         }
 
         DB::table('leads')->insert([

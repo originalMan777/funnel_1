@@ -11,6 +11,18 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
+        <testsuite name="Integration">
+            <directory>tests/Integration</directory>
+        </testsuite>
+        <testsuite name="Regression">
+            <directory>tests/Regression</directory>
+        </testsuite>
+        <testsuite name="Invariant">
+            <directory>tests/Invariant</directory>
+        </testsuite>
+        <testsuite name="Contracts">
+            <directory>tests/Contracts</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>

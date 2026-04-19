@@ -47,6 +47,128 @@ class PopupInvariantTest extends TestCase
             );
     }
 
+    public function test_strategy_routes_resolve_their_shared_page_keys_from_actual_route_names(): void
+    {
+        Popup::factory()->create([
+            'slug' => 'buyers-popup',
+            'target_pages' => ['buyers'],
+            'audience' => 'guests',
+        ]);
+
+        Popup::factory()->create([
+            'slug' => 'sellers-popup',
+            'target_pages' => ['sellers'],
+            'audience' => 'guests',
+        ]);
+
+        $this->get(route('buyers.strategy'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('BuyersStrategy')
+                ->where('popupManager.pageKey', 'buyers')
+                ->where('popupManager.popups', function ($popups): bool {
+                    $slugs = collect($popups)->pluck('slug');
+
+                    return $slugs->contains('buyers-popup')
+                        && ! $slugs->contains('sellers-popup');
+                })
+            );
+
+        $this->get(route('sellers.strategy'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('SellersStrategy')
+                ->where('popupManager.pageKey', 'sellers')
+                ->where('popupManager.popups', function ($popups): bool {
+                    $slugs = collect($popups)->pluck('slug');
+
+                    return $slugs->contains('sellers-popup')
+                        && ! $slugs->contains('buyers-popup');
+                })
+            );
+    }
+
+    public function test_global_everyone_popups_remain_shared_without_page_targeting(): void
+    {
+        Popup::factory()->create([
+            'slug' => 'global-popup',
+            'target_pages' => [],
+            'audience' => 'everyone',
+        ]);
+
+        Popup::factory()->create([
+            'slug' => 'auth-only-popup',
+            'target_pages' => [],
+            'audience' => 'authenticated',
+        ]);
+
+        $this->get(route('home'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Home')
+                ->where('popupManager.pageKey', 'home')
+                ->where('popupManager.popups', function ($popups): bool {
+                    $slugs = collect($popups)->pluck('slug');
+
+                    return $slugs->contains('global-popup')
+                        && ! $slugs->contains('auth-only-popup');
+                })
+            );
+    }
+
+    public function test_authenticated_requests_only_receive_matching_global_and_page_targeted_popups(): void
+    {
+        Popup::factory()->create([
+            'slug' => 'global-everyone-popup',
+            'target_pages' => [],
+            'audience' => 'everyone',
+        ]);
+
+        Popup::factory()->create([
+            'slug' => 'global-auth-popup',
+            'target_pages' => [],
+            'audience' => 'authenticated',
+        ]);
+
+        Popup::factory()->create([
+            'slug' => 'home-auth-popup',
+            'target_pages' => ['home'],
+            'audience' => 'authenticated',
+        ]);
+
+        Popup::factory()->create([
+            'slug' => 'home-guest-popup',
+            'target_pages' => ['home'],
+            'audience' => 'guests',
+        ]);
+
+        Popup::factory()->create([
+            'slug' => 'contact-auth-popup',
+            'target_pages' => ['contact'],
+            'audience' => 'authenticated',
+        ]);
+
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->get(route('home'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Home')
+                ->where('popupManager.pageKey', 'home')
+                ->where('popupManager.isAuthenticated', true)
+                ->where('popupManager.popups', function ($popups): bool {
+                    $slugs = collect($popups)->pluck('slug');
+
+                    return $slugs->contains('global-everyone-popup')
+                        && $slugs->contains('global-auth-popup')
+                        && $slugs->contains('home-auth-popup')
+                        && ! $slugs->contains('home-guest-popup')
+                        && ! $slugs->contains('contact-auth-popup');
+                })
+            );
+    }
+
     public function test_ineligible_popups_cannot_be_submitted_directly(): void
     {
         $authenticatedOnlyPopup = Popup::factory()->create([

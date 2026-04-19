@@ -13,7 +13,7 @@ class LeadSlotInvariantTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_incompatible_assignments_do_not_resolve_as_usable_slots(): void
+    public function test_active_assignments_resolve_even_when_slot_and_box_types_differ(): void
     {
         $slot = LeadSlot::factory()->create([
             'key' => 'home_intro',
@@ -29,7 +29,9 @@ class LeadSlotInvariantTest extends TestCase
 
         $resolved = app(LeadSlotResolver::class)->resolve('home');
 
-        $this->assertNull($resolved['home_intro']);
+        $this->assertSame($serviceBox->id, $resolved['home_intro']['leadBoxId']);
+        $this->assertSame('service', $resolved['home_intro']['type']);
+        $this->assertSame('home_intro', $resolved['home_intro']['context']['slotKey']);
     }
 
     public function test_disabled_and_inactive_states_do_not_leak_through_resolution(): void

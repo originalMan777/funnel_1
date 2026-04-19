@@ -1,6 +1,19 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3'
-import FrontLayout from '@/layouts/FrontLayout.vue'
+import { Link, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
+import FrontLayout from '@/layouts/FrontLayout.vue';
+
+const page = usePage();
+
+const consultationRequestHref = computed(() => {
+    const queryString = page.url.includes('?') ? page.url.split('?')[1] : '';
+
+    if (!queryString) {
+        return route('consultation.request');
+    }
+
+    return `${route('consultation.request')}?${queryString}`;
+});
 </script>
 
 <template>
@@ -26,7 +39,7 @@ import FrontLayout from '@/layouts/FrontLayout.vue'
 
             <div class="flex flex-wrap gap-4">
               <Link
-                :href="route('consultation.request')"
+                :href="consultationRequestHref"
                 class="rounded-lg bg-gray-900 px-6 py-3 text-sm font-medium text-white hover:bg-gray-800"
               >
                 Request Consultation
@@ -130,7 +143,7 @@ import FrontLayout from '@/layouts/FrontLayout.vue'
               </div>
 
               <Link
-                :href="route('consultation.request')"
+                :href="consultationRequestHref"
                 class="inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-6 py-3.5 font-medium text-white transition hover:bg-gray-800"
               >
                 Request Consultation
@@ -279,7 +292,9 @@ import FrontLayout from '@/layouts/FrontLayout.vue'
                 </div>
 
                 <div class="space-y-2">
-                  <label class="text-sm font-medium text-gray-900">What do you need help with?</label>
+                  <label class="text-sm font-medium text-gray-900">
+                    What do you need help with?
+                  </label>
                   <textarea
                     rows="5"
                     class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition focus:border-gray-300 focus:ring-2 focus:ring-gray-200"
@@ -332,7 +347,7 @@ import FrontLayout from '@/layouts/FrontLayout.vue'
 
               <div class="pt-2">
                 <Link
-                  :href="route('consultation.request')"
+                  :href="consultationRequestHref"
                   class="inline-flex rounded-md bg-white px-6 py-3 font-medium text-gray-900 transition hover:bg-white/90"
                 >
                   Get Started

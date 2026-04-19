@@ -1,10 +1,23 @@
 <?php
 
 use App\Http\Controllers\Admin\AiPostImporterController;
+use App\Http\Controllers\Admin\AcquisitionContactController;
 use App\Http\Controllers\Admin\BlogIndexSectionController;
+use App\Http\Controllers\Admin\CampaignController;
+use App\Http\Controllers\Admin\CampaignEnrollmentController;
 use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\CommunicationDeliveryController;
+use App\Http\Controllers\Admin\CommunicationEventController;
+use App\Http\Controllers\Admin\CommunicationComposerController;
+use App\Http\Controllers\Admin\CommunicationOverviewController;
+use App\Http\Controllers\Admin\CommunicationSettingsController;
+use App\Http\Controllers\Admin\CommunicationTemplateController;
+use App\Http\Controllers\Admin\CommunicationTemplatePreviewController;
+use App\Http\Controllers\Admin\CommunicationTemplateTestSendController;
+use App\Http\Controllers\Admin\CommunicationTemplateVersionController;
 use App\Http\Controllers\Admin\LeadBoxController;
 use App\Http\Controllers\Admin\LeadSlotController;
+use App\Http\Controllers\Admin\MarketingSyncController;
 use App\Http\Controllers\Admin\MediaLibraryController;
 use App\Http\Controllers\Admin\OfferLeadBoxController;
 use App\Http\Controllers\Admin\PopupController as AdminPopupController;
@@ -16,7 +29,9 @@ use App\Http\Controllers\ContentFormula\ContentFormulaController;
 use App\Http\Controllers\Public\PopupLeadController;
 use App\Http\Controllers\Public\LeadController;
 use App\Http\Controllers\Public\PostController as PublicPostController;
+use App\Http\Controllers\Public\HomeController;
 use Illuminate\Support\Facades\Route;
+
 use Inertia\Inertia;
 
 Route::get('/buyers-strategy', function () {
@@ -93,9 +108,7 @@ Route::middleware(['auth', 'admin'])
         ->name('posts.archive');
     });
 
-Route::get('/', function () {
-    return Inertia::render('Home');
-})->name('home');
+Route::get('/', HomeController::class)->name('home');
 
 Route::get('/about', function () {
     return Inertia::render('About');
@@ -127,6 +140,87 @@ Route::middleware(['auth', 'admin'])
             return Inertia::render('Admin/Dashboard');
         })->name('index');
 
+        Route::get('/acquisition/contacts', [AcquisitionContactController::class, 'index'])
+            ->name('acquisition.contacts.index');
+
+        Route::post('/acquisition/contacts/{contact}/touches', [AcquisitionContactController::class, 'storeTouch'])
+            ->name('acquisition.contacts.touches.store');
+
+        Route::patch('/acquisition/contacts/{contact}/state', [AcquisitionContactController::class, 'updateState'])
+            ->name('acquisition.contacts.update-state');
+
+        Route::get('/acquisition/contacts/{contact}', [AcquisitionContactController::class, 'show'])
+            ->name('acquisition.contacts.show');
+
+        Route::get('/communications', [CommunicationOverviewController::class, 'index'])
+            ->name('communications.index');
+        Route::get('/communications/events', [CommunicationEventController::class, 'index'])
+            ->name('communications.events.index');
+        Route::get('/communications/events/{communicationEvent}', [CommunicationEventController::class, 'show'])
+            ->name('communications.events.show');
+        Route::post('/communications/events/{communicationEvent}/requeue', [CommunicationEventController::class, 'requeue'])
+            ->name('communications.events.requeue');
+        Route::get('/communications/deliveries', [CommunicationDeliveryController::class, 'index'])
+            ->name('communications.deliveries.index');
+        Route::get('/communications/deliveries/{communicationDelivery}', [CommunicationDeliveryController::class, 'show'])
+            ->name('communications.deliveries.show');
+        Route::get('/communications/syncs', [MarketingSyncController::class, 'index'])
+            ->name('communications.syncs.index');
+        Route::get('/communications/syncs/{marketingContactSync}', [MarketingSyncController::class, 'show'])
+            ->name('communications.syncs.show');
+        Route::get('/communications/settings', [CommunicationSettingsController::class, 'index'])
+            ->name('communications.settings.index');
+        Route::put('/communications/settings', [CommunicationSettingsController::class, 'update'])
+            ->name('communications.settings.update');
+        Route::get('/communications/composer', [CommunicationComposerController::class, 'index'])
+            ->name('communications.composer.index');
+        Route::post('/communications/composer/preview', [CommunicationComposerController::class, 'preview'])
+            ->name('communications.composer.preview');
+        Route::post('/communications/composer/send', [CommunicationComposerController::class, 'send'])
+            ->name('communications.composer.send');
+        Route::get('/communications/templates', [CommunicationTemplateController::class, 'index'])
+            ->name('communications.templates.index');
+        Route::get('/communications/templates/create', [CommunicationTemplateController::class, 'create'])
+            ->name('communications.templates.create');
+        Route::post('/communications/templates', [CommunicationTemplateController::class, 'store'])
+            ->name('communications.templates.store');
+        Route::get('/communications/templates/{template}', [CommunicationTemplateController::class, 'show'])
+            ->name('communications.templates.show');
+        Route::get('/communications/templates/{template}/edit', [CommunicationTemplateController::class, 'edit'])
+            ->name('communications.templates.edit');
+        Route::put('/communications/templates/{template}', [CommunicationTemplateController::class, 'update'])
+            ->name('communications.templates.update');
+        Route::post('/communications/templates/{template}/versions', [CommunicationTemplateVersionController::class, 'store'])
+            ->name('communications.templates.versions.store');
+        Route::post('/communications/templates/{template}/versions/{version}/publish', [CommunicationTemplateVersionController::class, 'publish'])
+            ->name('communications.templates.versions.publish');
+        Route::post('/communications/templates/{template}/preview', [CommunicationTemplatePreviewController::class, 'store'])
+            ->name('communications.templates.preview');
+        Route::post('/communications/templates/{template}/test-send', [CommunicationTemplateTestSendController::class, 'store'])
+            ->name('communications.templates.test-send');
+
+        Route::get('/campaigns', [CampaignController::class, 'index'])
+            ->name('campaigns.index');
+        Route::get('/campaigns/create', [CampaignController::class, 'create'])
+            ->name('campaigns.create');
+        Route::post('/campaigns', [CampaignController::class, 'store'])
+            ->name('campaigns.store');
+        Route::get('/campaigns/{campaign}/edit', [CampaignController::class, 'edit'])
+            ->name('campaigns.edit');
+        Route::put('/campaigns/{campaign}', [CampaignController::class, 'update'])
+            ->name('campaigns.update');
+
+        Route::get('/campaign-enrollments', [CampaignEnrollmentController::class, 'index'])
+            ->name('campaign-enrollments.index');
+        Route::get('/campaign-enrollments/{campaignEnrollment}', [CampaignEnrollmentController::class, 'show'])
+            ->name('campaign-enrollments.show');
+        Route::post('/campaign-enrollments/{campaignEnrollment}/pause', [CampaignEnrollmentController::class, 'pause'])
+            ->name('campaign-enrollments.pause');
+        Route::post('/campaign-enrollments/{campaignEnrollment}/resume', [CampaignEnrollmentController::class, 'resume'])
+            ->name('campaign-enrollments.resume');
+        Route::post('/campaign-enrollments/{campaignEnrollment}/exit', [CampaignEnrollmentController::class, 'exit'])
+            ->name('campaign-enrollments.exit');
+
         Route::get('/posts', [AdminPostController::class, 'index'])->name('posts.index');
         Route::get('/posts/create', [AdminPostController::class, 'create'])->name('posts.create');
         Route::post('/posts', [AdminPostController::class, 'store'])->name('posts.store');
@@ -156,7 +250,7 @@ Route::middleware(['auth', 'admin'])
         Route::post('/media', [MediaLibraryController::class, 'store'])->name('media.store');
         Route::delete('/media', [MediaLibraryController::class, 'destroy'])->name('media.destroy');
 
-        Route::redirect('/lead-boxes', '/admin/lead-boxes/resource/create')->name('lead-boxes.index');
+        Route::get('/lead-boxes', [LeadBoxController::class, 'index'])->name('lead-boxes.index');
         Route::get('/lead-boxes/create', [LeadBoxController::class, 'create'])->name('lead-boxes.create');
         Route::get('/lead-boxes/{leadBox}/edit', [LeadBoxController::class, 'edit'])->name('lead-boxes.edit');
 

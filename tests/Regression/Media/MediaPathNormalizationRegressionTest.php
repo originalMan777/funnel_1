@@ -7,11 +7,13 @@ use App\Models\Post;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use Tests\Concerns\UsesIsolatedMediaRoot;
 use Tests\TestCase;
 
 class MediaPathNormalizationRegressionTest extends TestCase
 {
     use RefreshDatabase;
+    use UsesIsolatedMediaRoot;
 
     private string $blogImagesRoot;
 
@@ -19,7 +21,8 @@ class MediaPathNormalizationRegressionTest extends TestCase
     {
         parent::setUp();
 
-        $this->blogImagesRoot = public_path('images/blog');
+        $this->setUpIsolatedMediaRoot();
+        $this->blogImagesRoot = $this->isolatedBlogImagesRoot();
 
         File::ensureDirectoryExists($this->blogImagesRoot);
     }
@@ -43,7 +46,7 @@ class MediaPathNormalizationRegressionTest extends TestCase
         foreach ($columns as $column) {
             foreach ($this->managedPathVariants('normalization-delete-' . $column) as $variant) {
                 $canonicalPath = '/images/blog/normalization-delete-' . $column . '.png';
-                File::put($this->blogImagesRoot . DIRECTORY_SEPARATOR . 'normalization-delete-' . $column . '.png', 'image');
+                $this->putTinyPng($this->blogImagesRoot . DIRECTORY_SEPARATOR . 'normalization-delete-' . $column . '.png');
 
                 Post::factory()->create([$column => $variant]);
 

@@ -3,11 +3,15 @@
 namespace App\Services\Security;
 
 use App\Models\SecurityAuditLog;
+use App\Services\Logging\StructuredEventLogger;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 
 class SecurityAuditLogger
 {
+    public function __construct(
+        private readonly StructuredEventLogger $logger,
+    ) {}
+
     public function log(
         string $event,
         ?Request $request = null,
@@ -29,13 +33,14 @@ class SecurityAuditLogger
 
         SecurityAuditLog::create($payload);
 
-        Log::channel(config('logging.default'))->info('security_audit_event', [
-            'event' => $event,
+        $this->logger->info('security_audit', 'security_audit', 'security_audit_event', [
+            'request' => $request,
             'user_id' => $userId,
+            'actor_type' => $request?->user() ? 'user' : 'system',
             'entity_type' => $entityType,
             'entity_id' => $entityId,
-            'ip_address' => $request?->ip(),
-            'occurred_at' => now()->toIso8601String(),
+            'outcome' => 'recorded',
+            'reason' => $event,
             'context' => $context,
         ]);
     }

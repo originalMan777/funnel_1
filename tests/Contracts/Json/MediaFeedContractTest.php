@@ -5,11 +5,13 @@ namespace Tests\Contracts\Json;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use Tests\Concerns\UsesIsolatedMediaRoot;
 use Tests\TestCase;
 
 class MediaFeedContractTest extends TestCase
 {
     use RefreshDatabase;
+    use UsesIsolatedMediaRoot;
 
     private string $imagesRoot;
 
@@ -19,20 +21,14 @@ class MediaFeedContractTest extends TestCase
     {
         parent::setUp();
 
-        $this->imagesRoot = public_path('images');
+        $this->setUpIsolatedMediaRoot();
+        $this->imagesRoot = $this->isolatedImagesRoot();
 
         File::ensureDirectoryExists($this->imagesRoot);
         File::ensureDirectoryExists($this->imagesRoot . DIRECTORY_SEPARATOR . $this->folder);
 
-        File::put($this->imagesRoot . DIRECTORY_SEPARATOR . $this->folder . DIRECTORY_SEPARATOR . 'contract-first.png', 'contract-image-a');
-        File::put($this->imagesRoot . DIRECTORY_SEPARATOR . $this->folder . DIRECTORY_SEPARATOR . 'contract-second.png', 'contract-image-b');
-    }
-
-    protected function tearDown(): void
-    {
-        File::deleteDirectory($this->imagesRoot . DIRECTORY_SEPARATOR . $this->folder);
-
-        parent::tearDown();
+        $this->putTinyPng($this->imagesRoot . DIRECTORY_SEPARATOR . $this->folder . DIRECTORY_SEPARATOR . 'contract-first.png');
+        $this->putTinyPng($this->imagesRoot . DIRECTORY_SEPARATOR . $this->folder . DIRECTORY_SEPARATOR . 'contract-second.png');
     }
 
     public function test_media_feed_json_contract_matches_current_consumer_shape(): void

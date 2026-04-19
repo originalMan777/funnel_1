@@ -1,5 +1,6 @@
 <?php
 
+use App\Logging\StructuredJsonFormatter;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -54,7 +55,7 @@ return [
 
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', (string) env('LOG_STACK', 'single')),
+            'channels' => explode(',', (string) env('LOG_STACK', 'single,system')),
             'ignore_exceptions' => false,
         ],
 
@@ -71,6 +72,60 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => env('LOG_DAILY_DAYS', 14),
             'replace_placeholders' => true,
+        ],
+
+        'campaigns' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/campaigns.log'),
+            'level' => env('LOG_CAMPAIGNS_LEVEL', env('LOG_LEVEL', 'info')),
+            'days' => env('LOG_CAMPAIGNS_DAYS', env('LOG_DAILY_DAYS', 14)),
+            'replace_placeholders' => true,
+            'tap' => [StructuredJsonFormatter::class],
+        ],
+
+        'communications' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/communications.log'),
+            'level' => env('LOG_COMMUNICATIONS_LEVEL', env('LOG_LEVEL', 'info')),
+            'days' => env('LOG_COMMUNICATIONS_DAYS', env('LOG_DAILY_DAYS', 14)),
+            'replace_placeholders' => true,
+            'tap' => [StructuredJsonFormatter::class],
+        ],
+
+        'leads' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/leads.log'),
+            'level' => env('LOG_LEADS_LEVEL', env('LOG_LEVEL', 'info')),
+            'days' => env('LOG_LEADS_DAYS', env('LOG_DAILY_DAYS', 14)),
+            'replace_placeholders' => true,
+            'tap' => [StructuredJsonFormatter::class],
+        ],
+
+        'admin' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/admin.log'),
+            'level' => env('LOG_ADMIN_LEVEL', env('LOG_LEVEL', 'info')),
+            'days' => env('LOG_ADMIN_DAYS', env('LOG_DAILY_DAYS', 14)),
+            'replace_placeholders' => true,
+            'tap' => [StructuredJsonFormatter::class],
+        ],
+
+        'security_audit' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/security-audit.log'),
+            'level' => env('LOG_SECURITY_AUDIT_LEVEL', env('LOG_LEVEL', 'info')),
+            'days' => env('LOG_SECURITY_AUDIT_DAYS', env('LOG_DAILY_DAYS', 30)),
+            'replace_placeholders' => true,
+            'tap' => [StructuredJsonFormatter::class],
+        ],
+
+        'system' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/system.log'),
+            'level' => env('LOG_SYSTEM_LEVEL', env('LOG_LEVEL', 'warning')),
+            'days' => env('LOG_SYSTEM_DAYS', env('LOG_DAILY_DAYS', 14)),
+            'replace_placeholders' => true,
+            'tap' => [StructuredJsonFormatter::class],
         ],
 
         'slack' => [

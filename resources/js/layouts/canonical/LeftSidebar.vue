@@ -156,9 +156,9 @@ const sections: SidebarSection[] = [
     {
         title: 'Leads',
         links: [
-            { name: 'Lead Boxes', route: '/admin/lead-boxes/create' },
+            { name: 'Lead Boxes', route: '/admin/lead-boxes' },
             { name: 'Lead Slots', route: '/admin/lead-slots' },
-            { name: 'All Leads', route: cs('All Leads') },
+            { name: 'All Leads', route: '/admin/acquisition/contacts' },
             { name: 'Consultations', route: cs('Consultations') },
         ],
     },
@@ -168,6 +168,18 @@ const sections: SidebarSection[] = [
             { name: 'All Popups', route: '/admin/popups' },
             { name: 'Create Popup', route: '/admin/popups/create' },
             { name: 'Popup Submissions', route: cs('Popup Submissions') },
+        ],
+    },
+    {
+        title: 'Communications',
+        links: [
+            { name: 'Overview', route: '/admin/communications' },
+            { name: 'Templates', route: '/admin/communications/templates' },
+            { name: 'Email Composer', route: '/admin/communications/composer' },
+            { name: 'Events', route: '/admin/communications/events' },
+            { name: 'Deliveries', route: '/admin/communications/deliveries' },
+            { name: 'Marketing Syncs', route: '/admin/communications/syncs' },
+            { name: 'Settings', route: '/admin/communications/settings' },
         ],
     },
     {

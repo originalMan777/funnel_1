@@ -84,6 +84,8 @@ const previousPost = computed(() => props.previousPost ?? null)
 const nextPost = computed(() => props.nextPost ?? null)
 
 const page = usePage()
+const siteContent = computed(() => page.props.siteContent ?? {})
+const authorLabel = computed(() => siteContent.value?.blog?.author_label ?? 'Written by Awestruk.')
 
 const authUser = page.props.auth?.user as
   | {
@@ -403,7 +405,7 @@ const articleBlocks = computed<ArticleBlock[]>(() => {
             </h2>
 
             <p class="mt-3 font-sans text-base leading-relaxed text-gray-600">
-              Written by Awestruk.
+              {{ authorLabel }}
             </p>
           </div>
         </section>

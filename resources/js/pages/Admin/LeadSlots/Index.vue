@@ -2,23 +2,17 @@
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AdminLayout from '@/AppLayouts/AdminLayout.vue';
 
-type SlotKey =
-    | 'home_intro'
-    | 'home_mid'
-    | 'home_bottom'
-    | 'blog_index_mid_lead'
-    | 'blog_post_inline_1'
-    | 'blog_post_inline_2'
-    | 'blog_post_inline_3'
-    | 'blog_post_inline_4'
-    | 'blog_post_before_related';
-
 type SlotPayload = {
     id: number;
-    key: SlotKey;
+    key: string;
+    label: string;
     is_enabled: boolean;
     required_type: 'resource' | 'service' | 'offer';
     assignment_lead_box_id: number | null;
+    assignment_acquisition_id: number | null;
+    assignment_service_id: number | null;
+    assignment_acquisition_path_id: number | null;
+    assignment_acquisition_path_key: string | null;
 };
 
 type LeadBoxOption = {
@@ -28,36 +22,130 @@ type LeadBoxOption = {
     type: 'resource' | 'service' | 'offer';
 };
 
+type AcquisitionOption = {
+    id: number;
+    name: string;
+    slug: string;
+};
+
+type ServiceOption = {
+    id: number;
+    name: string;
+    slug: string;
+    acquisition_id: number;
+};
+
+type AcquisitionPathOption = {
+    id: number;
+    name: string;
+    path_key: string;
+    acquisition_id: number;
+    service_id: number | null;
+};
+
 const props = defineProps<{
     slots: SlotPayload[];
     activeLeadBoxes: LeadBoxOption[];
+    acquisitions: AcquisitionOption[];
+    services: ServiceOption[];
+    acquisitionPaths: AcquisitionPathOption[];
 }>();
 
 const forms = props.slots.map((slot) =>
     useForm({
         is_enabled: slot.is_enabled,
         lead_box_id: slot.assignment_lead_box_id ?? null as number | null,
+        acquisition_id: slot.assignment_acquisition_id ?? null as number | null,
+        service_id: slot.assignment_service_id ?? null as number | null,
+        acquisition_path_id: slot.assignment_acquisition_path_id ?? null as number | null,
     }),
 );
 
-const slotLabel = (key: SlotKey) => {
-    if (key === 'home_intro') return 'Home (intro)';
-    if (key === 'home_mid') return 'Home (mid)';
-    if (key === 'home_bottom') return 'Home (bottom)';
-    if (key === 'blog_index_mid_lead') return 'Blog index (mid)';
-    if (key === 'blog_post_inline_1') return 'Blog post inline 1';
-    if (key === 'blog_post_inline_2') return 'Blog post inline 2';
-    if (key === 'blog_post_inline_3') return 'Blog post inline 3';
-    if (key === 'blog_post_inline_4') return 'Blog post inline 4';
-    if (key === 'blog_post_before_related') return 'Blog post before related';
-    return key;
-};
-
-const selectedLabel = (formIndex: number) => {
+const selectedLeadBoxLabel = (formIndex: number) => {
     const form = forms[formIndex];
     if (!form.lead_box_id) return '— Unassigned —';
-    const found = props.activeLeadBoxes.find((b) => b.id === form.lead_box_id);
+    const found = props.activeLeadBoxes.find((box) => box.id === form.lead_box_id);
+
     return found ? `${found.internal_name} — ${found.title}` : 'Selected';
+};
+
+const selectedAcquisitionLabel = (formIndex: number) => {
+    const form = forms[formIndex];
+    if (!form.acquisition_id) return '— None —';
+    const found = props.acquisitions.find((acquisition) => acquisition.id === form.acquisition_id);
+
+    return found ? found.name : 'Selected';
+};
+
+const selectedServiceLabel = (formIndex: number) => {
+    const form = forms[formIndex];
+    if (!form.service_id) return '— None —';
+    const found = props.services.find((service) => service.id === form.service_id);
+
+    return found ? found.name : 'Selected';
+};
+
+const selectedPathLabel = (formIndex: number) => {
+    const form = forms[formIndex];
+    if (!form.acquisition_path_id) return '— None —';
+    const found = props.acquisitionPaths.find((path) => path.id === form.acquisition_path_id);
+
+    return found ? `${found.name} — ${found.path_key}` : 'Selected';
+};
+
+const availableServices = (formIndex: number) => {
+    const form = forms[formIndex];
+
+    if (!form.acquisition_id) {
+        return props.services;
+    }
+
+    return props.services.filter((service) => service.acquisition_id === form.acquisition_id);
+};
+
+const availablePaths = (formIndex: number) => {
+    const form = forms[formIndex];
+
+    return props.acquisitionPaths.filter((path) => {
+        if (form.acquisition_id && path.acquisition_id !== form.acquisition_id) {
+            return false;
+        }
+
+        if (form.service_id) {
+            return path.service_id === null || path.service_id === form.service_id;
+        }
+
+        return true;
+    });
+};
+
+const handleAcquisitionChange = (formIndex: number) => {
+    const form = forms[formIndex];
+
+    if (
+        form.service_id
+        && !availableServices(formIndex).some((service) => service.id === form.service_id)
+    ) {
+        form.service_id = null;
+    }
+
+    if (
+        form.acquisition_path_id
+        && !availablePaths(formIndex).some((path) => path.id === form.acquisition_path_id)
+    ) {
+        form.acquisition_path_id = null;
+    }
+};
+
+const handleServiceChange = (formIndex: number) => {
+    const form = forms[formIndex];
+
+    if (
+        form.acquisition_path_id
+        && !availablePaths(formIndex).some((path) => path.id === form.acquisition_path_id)
+    ) {
+        form.acquisition_path_id = null;
+    }
 };
 
 const submit = (slot: SlotPayload, formIndex: number) => {
@@ -108,7 +196,7 @@ const submit = (slot: SlotPayload, formIndex: number) => {
                             <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                                 <div>
                                     <p class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                                        {{ slotLabel(slot.key) }}
+                                        {{ slot.label }}
                                     </p>
                                     <h2 class="mt-2 text-xl font-semibold tracking-tight text-gray-900">
                                         {{ slot.key }}
@@ -118,8 +206,8 @@ const submit = (slot: SlotPayload, formIndex: number) => {
                                 <button
                                     type="button"
                                     class="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-50"
-                                    @click="submit(slot, idx)"
                                     :disabled="forms[idx].processing"
+                                    @click="submit(slot, idx)"
                                 >
                                     {{ forms[idx].processing ? 'Saving…' : 'Save' }}
                                 </button>
@@ -159,13 +247,17 @@ const submit = (slot: SlotPayload, formIndex: number) => {
                                         class="mt-3 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900"
                                     >
                                         <option :value="null">— Unassigned —</option>
-                                        <option v-for="box in props.activeLeadBoxes" :key="box.id" :value="box.id">
+                                        <option
+                                            v-for="box in props.activeLeadBoxes"
+                                            :key="box.id"
+                                            :value="box.id"
+                                        >
                                             {{ box.internal_name }} — {{ box.title }} ({{ box.type }})
                                         </option>
                                     </select>
 
                                     <p class="mt-3 text-sm text-gray-600">
-                                        Selected: <span class="font-semibold text-gray-900">{{ selectedLabel(idx) }}</span>
+                                        Selected: <span class="font-semibold text-gray-900">{{ selectedLeadBoxLabel(idx) }}</span>
                                     </p>
 
                                     <p v-if="forms[idx].errors.lead_box_id" class="mt-3 text-xs text-red-600">
@@ -177,9 +269,100 @@ const submit = (slot: SlotPayload, formIndex: number) => {
                                     </p>
                                 </div>
                             </div>
+
+                            <div class="mt-5 grid gap-5 md:grid-cols-3">
+                                <div class="rounded-xl bg-gray-50 p-5 ring-1 ring-black/5">
+                                    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                                        Acquisition
+                                    </p>
+
+                                    <select
+                                        v-model="forms[idx].acquisition_id"
+                                        class="mt-3 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900"
+                                        @change="handleAcquisitionChange(idx)"
+                                    >
+                                        <option :value="null">— None —</option>
+                                        <option
+                                            v-for="acquisition in props.acquisitions"
+                                            :key="acquisition.id"
+                                            :value="acquisition.id"
+                                        >
+                                            {{ acquisition.name }}
+                                        </option>
+                                    </select>
+
+                                    <p class="mt-3 text-sm text-gray-600">
+                                        Selected: <span class="font-semibold text-gray-900">{{ selectedAcquisitionLabel(idx) }}</span>
+                                    </p>
+
+                                    <p v-if="forms[idx].errors.acquisition_id" class="mt-3 text-xs text-red-600">
+                                        {{ forms[idx].errors.acquisition_id }}
+                                    </p>
+                                </div>
+
+                                <div class="rounded-xl bg-gray-50 p-5 ring-1 ring-black/5">
+                                    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                                        Service
+                                    </p>
+
+                                    <select
+                                        v-model="forms[idx].service_id"
+                                        class="mt-3 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900"
+                                        @change="handleServiceChange(idx)"
+                                    >
+                                        <option :value="null">— None —</option>
+                                        <option
+                                            v-for="service in availableServices(idx)"
+                                            :key="service.id"
+                                            :value="service.id"
+                                        >
+                                            {{ service.name }}
+                                        </option>
+                                    </select>
+
+                                    <p class="mt-3 text-sm text-gray-600">
+                                        Selected: <span class="font-semibold text-gray-900">{{ selectedServiceLabel(idx) }}</span>
+                                    </p>
+
+                                    <p v-if="forms[idx].errors.service_id" class="mt-3 text-xs text-red-600">
+                                        {{ forms[idx].errors.service_id }}
+                                    </p>
+                                </div>
+
+                                <div class="rounded-xl bg-gray-50 p-5 ring-1 ring-black/5">
+                                    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                                        Acquisition Path
+                                    </p>
+
+                                    <select
+                                        v-model="forms[idx].acquisition_path_id"
+                                        class="mt-3 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900"
+                                    >
+                                        <option :value="null">— None —</option>
+                                        <option
+                                            v-for="path in availablePaths(idx)"
+                                            :key="path.id"
+                                            :value="path.id"
+                                        >
+                                            {{ path.name }} — {{ path.path_key }}
+                                        </option>
+                                    </select>
+
+                                    <p class="mt-3 text-sm text-gray-600">
+                                        Selected: <span class="font-semibold text-gray-900">{{ selectedPathLabel(idx) }}</span>
+                                    </p>
+
+                                    <p v-if="forms[idx].errors.acquisition_path_id" class="mt-3 text-xs text-red-600">
+                                        {{ forms[idx].errors.acquisition_path_id }}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
-                        <div v-if="!props.slots.length" class="rounded-2xl border border-dashed border-gray-200 p-10 text-center text-sm text-gray-600">
+                        <div
+                            v-if="!props.slots.length"
+                            class="rounded-2xl border border-dashed border-gray-200 p-10 text-center text-sm text-gray-600"
+                        >
                             No slots found.
                         </div>
                     </div>

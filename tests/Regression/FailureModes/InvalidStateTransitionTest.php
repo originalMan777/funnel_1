@@ -29,12 +29,12 @@ class InvalidStateTransitionTest extends TestCase
         $this->assertDatabaseHas('posts', ['id' => $post->id]);
     }
 
-    public function test_invalid_lead_slot_reassignment_does_not_replace_existing_valid_assignment(): void
+    public function test_cross_type_lead_slot_reassignment_replaces_existing_assignment(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
         $slot = LeadSlot::factory()->create(['key' => 'home_intro', 'is_enabled' => true]);
         $validBox = LeadBox::factory()->resource()->active()->create();
-        $invalidBox = LeadBox::factory()->service()->active()->create();
+        $replacementBox = LeadBox::factory()->service()->active()->create();
 
         LeadAssignment::factory()->create([
             'lead_slot_id' => $slot->id,
@@ -45,18 +45,17 @@ class InvalidStateTransitionTest extends TestCase
             ->from(route('admin.lead-slots.index'))
             ->put(route('admin.lead-slots.update', $slot), [
                 'is_enabled' => true,
-                'lead_box_id' => $invalidBox->id,
+                'lead_box_id' => $replacementBox->id,
             ])
-            ->assertRedirect(route('admin.lead-slots.index'))
-            ->assertSessionHasErrors('lead_box_id');
+            ->assertRedirect(route('admin.lead-slots.index'));
 
-        $this->assertDatabaseHas('lead_assignments', [
+        $this->assertDatabaseMissing('lead_assignments', [
             'lead_slot_id' => $slot->id,
             'lead_box_id' => $validBox->id,
         ]);
-        $this->assertDatabaseMissing('lead_assignments', [
+        $this->assertDatabaseHas('lead_assignments', [
             'lead_slot_id' => $slot->id,
-            'lead_box_id' => $invalidBox->id,
+            'lead_box_id' => $replacementBox->id,
         ]);
     }
 }

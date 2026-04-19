@@ -6,11 +6,13 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
+use Tests\Concerns\UsesIsolatedMediaRoot;
 use Tests\TestCase;
 
 class MediaLibraryUploadTest extends TestCase
 {
     use RefreshDatabase;
+    use UsesIsolatedMediaRoot;
 
     private string $imagesRoot;
 
@@ -22,19 +24,11 @@ class MediaLibraryUploadTest extends TestCase
     {
         parent::setUp();
 
-        $this->imagesRoot = public_path('images');
+        $this->setUpIsolatedMediaRoot();
+        $this->imagesRoot = $this->isolatedImagesRoot();
 
         File::ensureDirectoryExists($this->imagesRoot);
         File::ensureDirectoryExists($this->imagesRoot . DIRECTORY_SEPARATOR . $this->allowedFolder);
-        File::deleteDirectory(public_path($this->escapeFolder));
-    }
-
-    protected function tearDown(): void
-    {
-        File::deleteDirectory($this->imagesRoot . DIRECTORY_SEPARATOR . $this->allowedFolder);
-        File::deleteDirectory(public_path($this->escapeFolder));
-
-        parent::tearDown();
     }
 
     public function test_verified_admin_can_upload_to_an_allowed_media_folder(): void
@@ -78,8 +72,10 @@ class MediaLibraryUploadTest extends TestCase
        $response->assertStatus(422)
     ->assertJsonValidationErrors('folder');
 
-        $this->assertDirectoryDoesNotExist(public_path($this->escapeFolder));
-        $this->assertFileDoesNotExist(public_path($this->escapeFolder . DIRECTORY_SEPARATOR . 'proof.png'));
+        $escapePath = dirname($this->imagesRoot) . DIRECTORY_SEPARATOR . $this->escapeFolder;
+
+        $this->assertDirectoryDoesNotExist($escapePath);
+        $this->assertFileDoesNotExist($escapePath . DIRECTORY_SEPARATOR . 'proof.png');
     }
 
     public function test_non_image_upload_is_rejected_and_not_persisted(): void

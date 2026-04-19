@@ -42,10 +42,20 @@ class CategoryController extends Controller
 
         $validated['slug'] = $this->generateUniqueSlug($baseSlug);
 
-        Category::create([
+        $category = Category::create([
             'name' => $validated['name'],
             'slug' => $validated['slug'],
         ]);
+
+        if ($request->expectsJson() || $request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'category' => [
+                    'id' => $category->id,
+                    'name' => $category->name,
+                    'slug' => $category->slug,
+                ],
+            ], 201);
+        }
 
         return redirect()->route('admin.categories.index');
     }

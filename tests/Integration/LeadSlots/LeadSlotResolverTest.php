@@ -53,7 +53,7 @@ class LeadSlotResolverTest extends TestCase
         $this->assertSame('home', $resolved['home_intro']['context']['pageKey']);
     }
 
-    public function test_resolver_returns_null_for_missing_disabled_inactive_or_incompatible_slots(): void
+    public function test_resolver_returns_null_for_missing_disabled_or_inactive_slots(): void
     {
         $disabledSlot = LeadSlot::factory()->create([
             'key' => 'home_intro',
@@ -77,20 +77,62 @@ class LeadSlotResolverTest extends TestCase
             'lead_box_id' => $inactiveBox->id,
         ]);
 
-        $badTypeSlot = LeadSlot::factory()->create([
+        $activeSlot = LeadSlot::factory()->create([
             'key' => 'home_bottom',
             'is_enabled' => true,
         ]);
-        $badTypeBox = LeadBox::factory()->service()->active()->create();
+        $activeBox = LeadBox::factory()->service()->active()->create();
         LeadAssignment::factory()->create([
-            'lead_slot_id' => $badTypeSlot->id,
-            'lead_box_id' => $badTypeBox->id,
+            'lead_slot_id' => $activeSlot->id,
+            'lead_box_id' => $activeBox->id,
         ]);
 
         $resolved = app(LeadSlotResolver::class)->resolve('home');
 
         $this->assertNull($resolved['home_intro']);
         $this->assertNull($resolved['home_mid']);
-        $this->assertNull($resolved['home_bottom']);
+        $this->assertSame($activeBox->id, $resolved['home_bottom']['leadBoxId']);
+    }
+
+    public function test_same_lead_box_can_resolve_in_multiple_slots_without_being_deduped(): void
+    {
+        $leadBox = LeadBox::factory()->offer()->active()->create([
+            'title' => 'Reusable Offer Box',
+        ]);
+
+        foreach ([
+            'blog_index_mid_lead',
+            'blog_post_inline_1',
+            'blog_post_inline_2',
+            'blog_post_inline_3',
+            'blog_post_inline_4',
+            'blog_post_before_related',
+        ] as $slotKey) {
+            $slot = LeadSlot::factory()->create([
+                'key' => $slotKey,
+                'is_enabled' => true,
+            ]);
+
+            LeadAssignment::factory()->create([
+                'lead_slot_id' => $slot->id,
+                'lead_box_id' => $leadBox->id,
+            ]);
+        }
+
+        $blogIndexResolved = app(LeadSlotResolver::class)->resolve('blog_index');
+        $blogShowResolved = app(LeadSlotResolver::class)->resolve('blog_show');
+
+        $this->assertSame($leadBox->id, $blogIndexResolved['blog_index_mid_lead']['leadBoxId']);
+
+        foreach ([
+            'blog_post_inline_1',
+            'blog_post_inline_2',
+            'blog_post_inline_3',
+            'blog_post_inline_4',
+            'blog_post_before_related',
+        ] as $slotKey) {
+            $this->assertSame($leadBox->id, $blogShowResolved[$slotKey]['leadBoxId']);
+            $this->assertSame($slotKey, $blogShowResolved[$slotKey]['context']['slotKey']);
+        }
     }
 }

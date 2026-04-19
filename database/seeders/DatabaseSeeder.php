@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call(LeadBlocksSeeder::class);
+        $this->call(AcquisitionCatalogSeeder::class);
 
         User::query()->firstOrCreate(
             ['email' => 'test@example.com'],
