@@ -15,6 +15,8 @@ class DatabaseSeeder extends Seeder
     {
         $this->call(LeadBlocksSeeder::class);
         $this->call(AcquisitionCatalogSeeder::class);
+        $this->call(AnalyticsEventTypeSeeder::class);
+        $this->call(AnalyticsScenarioDefinitionSeeder::class);
 
         User::query()->firstOrCreate(
             ['email' => 'test@example.com'],

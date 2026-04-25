@@ -1,13 +1,30 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import TrackedLink from '@/components/analytics/TrackedLink.vue';
 import LeadAccentBadge from '@/components/public/lead/LeadAccentBadge.vue';
+import { useAnalyticsImpression } from '@/composables/useAnalyticsImpression';
+import { trackEvent } from '@/lib/analytics';
 import type { LeadBlockRenderModel } from '@/types/leadBlocks';
 
 const props = defineProps<{
     model: LeadBlockRenderModel;
     previewMode?: boolean;
 }>();
+
+const surfaceRef = ref<Element | null>(null);
+
+useAnalyticsImpression(
+    surfaceRef,
+    () => ({
+        eventKey: 'lead_box.impression',
+        leadBoxId: props.model.leadBoxId,
+        surfaceKey: `lead_box.${props.model.context.slotKey}`,
+        properties: {
+            source: 'service_lead_block',
+        },
+    }),
+    { threshold: 0.4 },
+);
 
 const eyebrow = computed(() => {
     return (props.model.content?.eyebrow as string) || 'Service';
@@ -33,6 +50,7 @@ const consultHref = computed(() => {
 
 <template>
     <section
+        ref="surfaceRef"
         class="relative overflow-hidden rounded-[32px] bg-white px-6 py-10 shadow-[0_30px_80px_rgba(15,23,42,0.10)] ring-1 ring-black/5 md:px-10 md:py-14"
     >
         <LeadAccentBadge />
@@ -73,13 +91,22 @@ const consultHref = computed(() => {
             </p>
 
             <div class="mt-8">
-                <Link
+                <TrackedLink
                     v-if="!previewMode"
+                    cta-key="lead_box.service.primary"
                     :href="consultHref"
+                    :surface-key="`lead_box.${model.context.slotKey}`"
+                    :lead-box-id="model.leadBoxId"
                     class="inline-flex items-center justify-center rounded-2xl bg-[#1d3f1f] px-6 py-3.5 text-sm font-semibold text-white shadow-[0_16px_32px_rgba(29,63,31,0.18)] transition hover:bg-[#173319]"
+                    @click="trackEvent({
+                        eventKey: 'lead_box.click',
+                        leadBoxId: model.leadBoxId,
+                        surfaceKey: `lead_box.${model.context.slotKey}`,
+                        properties: { source: 'service_lead_block' },
+                    })"
                 >
                     {{ model.buttonText || 'Book a consultation' }}
-                </Link>
+                </TrackedLink>
 
                 <button
                     v-else

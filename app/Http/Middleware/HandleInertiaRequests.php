@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Popup;
+use App\Services\Analytics\AnalyticsBootstrapService;
 use App\Services\LeadSlots\LeadSlotResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -41,12 +42,13 @@ class HandleInertiaRequests extends Middleware
             ],
             'siteContent' => config('site_content'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'analytics' => fn () => app(AnalyticsBootstrapService::class)->forRequest($request),
             'popupManager' => fn () => $this->resolvePopupManager($request),
             'leadSlots' => fn () => $this->resolveLeadSlots($request),
         ];
     }
 
-        /**
+    /**
      * @return array<string, array<string,mixed>|null>
      */
     private function resolveLeadSlots(Request $request): array
@@ -71,7 +73,7 @@ class HandleInertiaRequests extends Middleware
             && Schema::hasTable('lead_boxes');
     }
 
-/**
+    /**
      * @return array{pageKey:?string,leadCaptured:bool,isAuthenticated:bool,popups:array<int,array<string,mixed>>}
      */
     private function resolvePopupManager(Request $request): array

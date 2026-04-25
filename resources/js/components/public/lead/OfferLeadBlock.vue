@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import TrackedLink from '@/components/analytics/TrackedLink.vue';
 import LeadAccentBadge from '@/components/public/lead/LeadAccentBadge.vue';
 import LeadFloatingCard from '@/components/public/lead/LeadFloatingCard.vue';
+import { useAnalyticsImpression } from '@/composables/useAnalyticsImpression';
+import { trackEvent } from '@/lib/analytics';
 import { resolveLeadIcon } from '@/lib/leadIcons';
 import type { LeadBlockRenderModel } from '@/types/leadBlocks';
 
@@ -12,6 +14,21 @@ const props = defineProps<{
     model: LeadBlockRenderModel;
     previewMode?: boolean;
 }>();
+
+const surfaceRef = ref<Element | null>(null);
+
+useAnalyticsImpression(
+    surfaceRef,
+    () => ({
+        eventKey: 'lead_box.impression',
+        leadBoxId: props.model.leadBoxId,
+        surfaceKey: `lead_box.${props.model.context.slotKey}`,
+        properties: {
+            source: 'offer_lead_block',
+        },
+    }),
+    { threshold: 0.4 },
+);
 
 const breakdown1 = computed(() => props.model.shortText || '');
 const breakdown2 = computed(
@@ -62,6 +79,7 @@ const consultHref = computed(() => {
         </div>
 
         <div
+            ref="surfaceRef"
             class="relative z-10 grid gap-4 md:grid-cols-[3fr_2fr] md:items-stretch"
         >
             <!-- LEFT 60% -->
@@ -170,13 +188,22 @@ const consultHref = computed(() => {
                     </div>
 
                     <div class="space-y-3">
-                        <Link
+                        <TrackedLink
                             v-if="!previewMode"
+                            cta-key="lead_box.offer.primary"
                             :href="consultHref"
+                            :surface-key="`lead_box.${model.context.slotKey}`"
+                            :lead-box-id="model.leadBoxId"
                             class="inline-flex w-full items-center justify-center rounded-xl bg-[#a59064] px-4 py-3 text-sm font-semibold text-[#102514] shadow-[0_16px_30px_rgba(165,144,100,0.26)] transition hover:bg-[#b39d72]"
+                            @click="trackEvent({
+                                eventKey: 'lead_box.click',
+                                leadBoxId: model.leadBoxId,
+                                surfaceKey: `lead_box.${model.context.slotKey}`,
+                                properties: { source: 'offer_lead_block' },
+                            })"
                         >
                             {{ model.buttonText || 'Book a consultation' }}
-                        </Link>
+                        </TrackedLink>
 
                         <button
                             v-else

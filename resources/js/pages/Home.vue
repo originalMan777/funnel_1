@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
+import TrackedLink from '@/components/analytics/TrackedLink.vue'
 import FrontLayout from '@/layouts/FrontLayout.vue'
 import LeadSlotRenderer from '@/components/public/lead/LeadSlotRenderer.vue'
 import buyingIcon from '@/images/icons/who-we-help/buying.svg'
@@ -184,20 +185,24 @@ onBeforeUnmount(() => {
                     </p>
 
                     <div class="flex flex-wrap items-center gap-5 pt-2">
-                        <Link
+                        <TrackedLink
                             href="/consultation"
+                            cta-key="home.hero.consultation"
+                            surface-key="home.hero"
                             data-popup-trigger="current-page"
                             class="rounded-xl bg-white px-7 py-3.5 text-base font-semibold text-gray-900 shadow-md transition hover:bg-gray-100"
                         >
                             Book a Consultation
-                        </Link>
+                        </TrackedLink>
 
-                        <Link
+                        <TrackedLink
                             href="/services"
+                            cta-key="home.hero.services"
+                            surface-key="home.hero"
                             class="rounded-xl border border-white/40 px-5 py-3 text-sm font-medium text-white/80 transition hover:border-white hover:bg-white/10 hover:text-white"
                         >
                             See How It Works
-                        </Link>
+                        </TrackedLink>
                     </div>
                 </div>
             </div>
@@ -238,12 +243,14 @@ onBeforeUnmount(() => {
                                 </p>
 
                                 <div class="mt-8">
-                                    <Link
+                                    <TrackedLink
                                         href="/buyers-strategy"
+                                        cta-key="home.path.buyers"
+                                        surface-key="home.who_we_help"
                                         class="text-sm font-medium text-gray-900 transition hover:text-green-900"
                                     >
                                         Start with buying →
-                                    </Link>
+                                    </TrackedLink>
                                 </div>
                             </div>
 
@@ -263,12 +270,14 @@ onBeforeUnmount(() => {
                                 </p>
 
                                 <div class="mt-8">
-                                    <Link
+                                    <TrackedLink
                                         href="/sellers-strategy"
+                                        cta-key="home.path.sellers"
+                                        surface-key="home.who_we_help"
                                         class="text-sm font-medium text-gray-900 transition hover:text-green-900"
                                     >
                                         Plan your sale →
-                                    </Link>
+                                    </TrackedLink>
                                 </div>
                             </div>
 

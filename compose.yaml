@@ -53,6 +53,14 @@ services:
         networks:
             - sail
 
+    mailhog:
+        image: mailhog/mailhog
+        ports:
+            - '8025:8025'
+            - '1025:1025'
+        networks:
+            - sail
+
 networks:
     sail:
         driver: bridge

@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import TrackedButton from '@/components/analytics/TrackedButton.vue';
 import LeadAccentBadge from '@/components/public/lead/LeadAccentBadge.vue';
+import { useAnalyticsImpression } from '@/composables/useAnalyticsImpression';
 import { useLeadCaptureForm } from '@/composables/useLeadCaptureForm';
+import { trackEvent } from '@/lib/analytics';
 import { resolveLeadIcon } from '@/lib/leadIcons';
 import type { LeadBlockRenderModel } from '@/types/leadBlocks';
 
@@ -10,8 +13,23 @@ const props = defineProps<{
     previewMode?: boolean;
 }>();
 
+const surfaceRef = ref<Element | null>(null);
+
 const { form, isFormOpen, isSuccess, canSubmit, open, close, submit } =
     useLeadCaptureForm(props.model);
+
+useAnalyticsImpression(
+    surfaceRef,
+    () => ({
+        eventKey: 'lead_box.impression',
+        leadBoxId: props.model.leadBoxId,
+        surfaceKey: `lead_box.${props.model.context.slotKey}`,
+        properties: {
+            source: 'resource_lead_block',
+        },
+    }),
+    { threshold: 0.4 },
+);
 
 const iconComponent = computed(() => resolveLeadIcon(props.model.iconKey));
 
@@ -37,6 +55,15 @@ const start = () => {
         return;
     }
 
+    trackEvent({
+        eventKey: 'lead_box.click',
+        leadBoxId: props.model.leadBoxId,
+        surfaceKey: `lead_box.${props.model.context.slotKey}`,
+        properties: {
+            source: 'resource_lead_block',
+        },
+    });
+
     open();
 };
 
@@ -59,6 +86,7 @@ const closeForm = () => {
 
 <template>
     <section
+        ref="surfaceRef"
         class="relative overflow-hidden rounded-[32px] bg-white px-6 py-8 shadow-[0_30px_80px_rgba(15,23,42,0.10)] ring-1 ring-black/5 md:px-8 md:py-10"
     >
         <LeadAccentBadge />
@@ -140,14 +168,16 @@ const closeForm = () => {
                 </div>
 
                 <div v-else>
-                    <button
+                    <TrackedButton
                         v-if="!isFormOpen"
-                        type="button"
+                        cta-key="lead_box.resource.primary"
+                        :surface-key="`lead_box.${model.context.slotKey}`"
+                        :lead-box-id="model.leadBoxId"
                         class="inline-flex items-center justify-center rounded-2xl bg-[#1d3f1f] px-6 py-3.5 text-sm font-semibold text-white shadow-[0_16px_32px_rgba(29,63,31,0.18)] transition hover:bg-[#173319]"
                         @click="start"
                     >
                         {{ model.buttonText || 'Get the resource' }}
-                    </button>
+                    </TrackedButton>
 
                     <div
                         v-else

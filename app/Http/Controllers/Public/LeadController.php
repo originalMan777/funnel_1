@@ -10,6 +10,7 @@ use App\Models\LeadAssignment;
 use App\Models\LeadBox;
 use App\Models\LeadSlot;
 use App\Services\Acquisition\AcquisitionContactResolver;
+use App\Services\Analytics\AnalyticsObservationService;
 use App\Services\Communications\CommunicationService;
 use App\Services\Leads\LeadAcquisitionResolver;
 use App\Services\Logging\StructuredEventLogger;
@@ -25,6 +26,7 @@ class LeadController extends Controller
     public function __construct(
         private readonly AcquisitionContactResolver $acquisitionContactResolver,
         private readonly LeadAcquisitionResolver $leadAcquisitionResolver,
+        private readonly AnalyticsObservationService $analyticsObservationService,
         private readonly CommunicationService $communicationService,
         private readonly StructuredEventLogger $logger,
     ) {}
@@ -224,6 +226,8 @@ class LeadController extends Controller
             'outcome' => 'created',
             'context' => $this->leadLogContext($lead),
         ]);
+
+        $this->analyticsObservationService->recordLeadSubmission($request, $lead);
 
         $this->communicationService->recordAndQueue(
             eventKey: 'lead.created',

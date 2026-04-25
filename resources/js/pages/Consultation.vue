@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import TrackedLink from '@/components/analytics/TrackedLink.vue';
 import FrontLayout from '@/layouts/FrontLayout.vue';
 
 const page = usePage();
@@ -38,19 +39,23 @@ const consultationRequestHref = computed(() => {
             </p>
 
             <div class="flex flex-wrap gap-4">
-              <Link
+              <TrackedLink
                 :href="consultationRequestHref"
+                cta-key="consultation.hero.request"
+                surface-key="consultation.hero"
                 class="rounded-lg bg-gray-900 px-6 py-3 text-sm font-medium text-white hover:bg-gray-800"
               >
                 Request Consultation
-              </Link>
+              </TrackedLink>
 
-              <Link
+              <TrackedLink
                 href="/contact"
+                cta-key="consultation.hero.contact"
+                surface-key="consultation.hero"
                 class="rounded-lg border border-gray-200 px-6 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 Contact Nojo
-              </Link>
+              </TrackedLink>
             </div>
           </div>
         </div>
@@ -142,12 +147,14 @@ const consultationRequestHref = computed(() => {
                 </ul>
               </div>
 
-              <Link
+              <TrackedLink
                 :href="consultationRequestHref"
+                cta-key="consultation.mid.request"
+                surface-key="consultation.content"
                 class="inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-6 py-3.5 font-medium text-white transition hover:bg-gray-800"
               >
                 Request Consultation
-              </Link>
+              </TrackedLink>
 
               <p class="text-sm leading-relaxed text-gray-500">
                 A guided intake popup will open so you can submit your information.

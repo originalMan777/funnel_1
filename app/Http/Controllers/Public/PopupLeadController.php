@@ -8,6 +8,7 @@ use App\Models\AcquisitionSource;
 use App\Models\Popup;
 use App\Models\PopupLead;
 use App\Services\Acquisition\AcquisitionContactResolver;
+use App\Services\Analytics\AnalyticsObservationService;
 use App\Services\Communications\CommunicationService;
 use App\Services\Leads\LeadAcquisitionResolver;
 use App\Services\Logging\StructuredEventLogger;
@@ -25,6 +26,7 @@ class PopupLeadController extends Controller
     public function __construct(
         private readonly AcquisitionContactResolver $acquisitionContactResolver,
         private readonly LeadAcquisitionResolver $leadAcquisitionResolver,
+        private readonly AnalyticsObservationService $analyticsObservationService,
         private readonly SecurityAuditLogger $securityAuditLogger,
         private readonly CommunicationService $communicationService,
         private readonly StructuredEventLogger $logger,
@@ -293,6 +295,8 @@ class PopupLeadController extends Controller
             'outcome' => 'created',
             'context' => $this->popupLeadLogContext($lead),
         ]);
+
+        $this->analyticsObservationService->recordPopupSubmission($request, $lead, $popup);
 
         $this->communicationService->recordAndQueue(
             eventKey: 'popup.submitted',

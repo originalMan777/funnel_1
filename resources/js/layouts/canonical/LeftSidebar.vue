@@ -95,7 +95,8 @@ import { computed, reactive, watch } from 'vue';
 type SidebarLink = { name: string; route: string };
 type SidebarSection = { title: string; links: SidebarLink[] };
 
-const ALWAYS_VISIBLE_LINKS = 2;
+const visibleCountFor = (section: SidebarSection) =>
+    section.title === 'Communications' ? 4 : section.title === 'Analytics' ? 3 : 2;
 
 const page = usePage();
 const currentUrl = computed(() => String(page.url || ''));
@@ -126,7 +127,7 @@ const sections: SidebarSection[] = [
         title: 'Dashboard',
         links: [
             { name: 'Overview', route: '/admin' },
-            { name: 'Activity', route: cs('Activity') },
+            { name: 'Media Library', route: '/admin/media' },
         ],
     },
     {
@@ -134,13 +135,6 @@ const sections: SidebarSection[] = [
         links: [
             { name: 'Generator', route: '/admin/content-formula' },
             { name: 'Post Importer', route: '/admin/post-importer' },
-        ],
-    },
-    {
-        title: 'Media',
-        links: [
-            { name: 'Library', route: '/admin/media' },
-            { name: 'Browser', route: '/admin/media/browser' },
         ],
     },
     {
@@ -159,15 +153,10 @@ const sections: SidebarSection[] = [
             { name: 'Lead Boxes', route: '/admin/lead-boxes' },
             { name: 'Lead Slots', route: '/admin/lead-slots' },
             { name: 'All Leads', route: '/admin/acquisition/contacts' },
-            { name: 'Consultations', route: cs('Consultations') },
-        ],
-    },
-    {
-        title: 'Pop-ups',
-        links: [
             { name: 'All Popups', route: '/admin/popups' },
             { name: 'Create Popup', route: '/admin/popups/create' },
             { name: 'Popup Submissions', route: cs('Popup Submissions') },
+            { name: 'Consultations', route: cs('Consultations') },
         ],
     },
     {
@@ -180,6 +169,8 @@ const sections: SidebarSection[] = [
             { name: 'Deliveries', route: '/admin/communications/deliveries' },
             { name: 'Marketing Syncs', route: '/admin/communications/syncs' },
             { name: 'Settings', route: '/admin/communications/settings' },
+            { name: 'Campaigns', route: '/admin/campaigns' },
+            { name: 'Campaign Enrollments', route: '/admin/campaign-enrollments' },
         ],
     },
     {
@@ -188,18 +179,26 @@ const sections: SidebarSection[] = [
     },
     {
         title: 'Analytics',
-        links: [{ name: 'Overview', route: cs('Analytics Overview') }],
+        links: [
+            { name: 'Overview', route: '/admin/analytics' },
+            { name: 'Metrics Catalog', route: '/admin/analytics/metrics' },
+            { name: 'Funnels', route: '/admin/analytics/funnels' },
+            { name: 'Scenarios', route: '/admin/analytics/scenarios' },
+            { name: 'Pages', route: '/admin/analytics/pages' },
+            { name: 'CTAs', route: '/admin/analytics/ctas' },
+            { name: 'Lead Boxes', route: '/admin/analytics/lead-boxes' },
+            { name: 'Popups', route: '/admin/analytics/popups' },
+            { name: 'Conversions', route: '/admin/analytics/conversions' },
+            { name: 'Attribution', route: '/admin/analytics/attribution' },
+        ],
     },
 ];
 
 const expanded = reactive<Record<string, boolean>>({});
 
-const visibleLinks = (section: SidebarSection) =>
-    section.links.slice(0, ALWAYS_VISIBLE_LINKS);
-const hiddenLinks = (section: SidebarSection) =>
-    section.links.slice(ALWAYS_VISIBLE_LINKS);
-const isExpandable = (section: SidebarSection) =>
-    section.links.length > ALWAYS_VISIBLE_LINKS;
+const visibleLinks = (section: SidebarSection) => section.links.slice(0, visibleCountFor(section));
+const hiddenLinks = (section: SidebarSection) => section.links.slice(visibleCountFor(section));
+const isExpandable = (section: SidebarSection) => section.links.length > visibleCountFor(section);
 const isExpanded = (title: string) => !!expanded[title];
 const hasActiveLink = (section: SidebarSection) =>
     section.links.some((link) => isActive(link.route));

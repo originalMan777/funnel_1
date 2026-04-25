@@ -35,10 +35,17 @@ class CommunicationTemplateController extends Controller
                     'category' => $template->category,
                     'description' => $template->description,
                     'bindings_count' => $template->bindings->count(),
+                    'binding_summary' => $this->bindingSummary($template),
                     'current_version' => $template->currentVersion ? [
                         'id' => $template->currentVersion->id,
                         'version_number' => $template->currentVersion->version_number,
+                        'subject' => $template->currentVersion->subject,
+                        'preview_text' => $template->currentVersion->preview_text,
+                        'headline' => $template->currentVersion->headline,
+                        'text_body' => $template->currentVersion->text_body,
+                        'html_body' => $template->currentVersion->html_body,
                         'is_published' => (bool) $template->currentVersion->is_published,
+                        'published_at' => optional($template->currentVersion->published_at)?->toISOString(),
                     ] : null,
                 ])
                 ->values(),
@@ -194,6 +201,7 @@ class CommunicationTemplateController extends Controller
                         'subject' => $version->subject,
                         'preview_text' => $version->preview_text,
                         'headline' => $version->headline,
+                        'html_body' => $version->html_body,
                         'text_body' => $version->text_body,
                         'notes' => $version->notes,
                         'sample_payload' => $version->sample_payload ?? [],
@@ -292,6 +300,32 @@ class CommunicationTemplateController extends Controller
         return [
             'event_label' => (string) ($definition['label'] ?? $eventKey),
             'action_label' => (string) ($action['label'] ?? $actionKey),
+        ];
+    }
+
+    /**
+     * @return array{primary_label: string|null, additional_count: int}
+     */
+    private function bindingSummary(CommunicationTemplate $template): array
+    {
+        $bindings = $template->bindings
+            ->sortBy('priority')
+            ->values();
+
+        $firstBinding = $bindings->firstWhere('is_enabled', true) ?? $bindings->first();
+
+        if (! $firstBinding) {
+            return [
+                'primary_label' => null,
+                'additional_count' => 0,
+            ];
+        }
+
+        $display = $this->bindingDisplayData($firstBinding->event_key, $firstBinding->action_key);
+
+        return [
+            'primary_label' => sprintf('%s / %s', $display['event_label'], $display['action_label']),
+            'additional_count' => max(0, $bindings->count() - 1),
         ];
     }
 

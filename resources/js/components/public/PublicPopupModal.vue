@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useForm, usePage } from '@inertiajs/vue3'
+import { trackEvent } from '@/lib/analytics'
 import { route } from 'ziggy-js';
 
 
@@ -55,6 +56,7 @@ const isOpen = ref(false)
 const submitted = ref(false)
 const timeouts = ref<number[]>([])
 const exitIntentBound = ref(false)
+const eligibilityTracked = ref<Set<string>>(new Set())
 
 const form = useForm({
   popup_id: null as number | null,
@@ -159,6 +161,38 @@ function eligiblePopupsByTrigger(trigger: PopupRecord['trigger_type']) {
   })
 }
 
+function trackEligiblePopups() {
+  sortedPopups.value
+    .filter((popup) => {
+      if (!passesDeviceRule(popup)) return false
+      if (popup.audience === 'guests' && isAuthenticated.value) return false
+      if (popup.audience === 'authenticated' && !isAuthenticated.value) return false
+      if (isSuppressedByLeadState(popup)) return false
+      if (hasSeenPopup(popup)) return false
+
+      return true
+    })
+    .forEach((popup) => {
+      const key = `${pageKey.value}:${popup.id}`
+
+      if (eligibilityTracked.value.has(key)) {
+        return
+      }
+
+      eligibilityTracked.value.add(key)
+
+      trackEvent({
+        eventKey: 'popup.eligible',
+        popupId: popup.id,
+        surfaceKey: `popup.${popup.slug}`,
+        properties: {
+          source: 'popup_manager',
+          trigger: popup.trigger_type,
+        },
+      })
+    })
+}
+
 function getManualTriggerPopup(triggerValue: string | null) {
   const clickPopups = eligiblePopupsByTrigger('click')
 
@@ -173,7 +207,7 @@ function getManualTriggerPopup(triggerValue: string | null) {
   }) ?? clickPopups[0]
 }
 
-function openPopup(popup: PopupRecord) {
+function openPopup(popup: PopupRecord, source: 'automatic' | 'manual' = 'automatic') {
   activePopup.value = popup
   submitted.value = false
   form.reset('name', 'email', 'phone', 'message')
@@ -183,9 +217,41 @@ function openPopup(popup: PopupRecord) {
   form.source_url = typeof window !== 'undefined' ? window.location.href : ''
   isOpen.value = true
   markPopupSeen(popup)
+
+  trackEvent({
+    eventKey: 'popup.impression',
+    popupId: popup.id,
+    surfaceKey: `popup.${popup.slug}`,
+    properties: {
+      source,
+      trigger: popup.trigger_type,
+    },
+  })
+
+  trackEvent({
+    eventKey: 'popup.opened',
+    popupId: popup.id,
+    surfaceKey: `popup.${popup.slug}`,
+    properties: {
+      source,
+      trigger: popup.trigger_type,
+    },
+  })
 }
 
-function closePopup() {
+function closePopup(reason: 'dismissed' | 'submitted' | 'completed' = 'dismissed') {
+  if (reason === 'dismissed' && isOpen.value && activePopup.value && !submitted.value) {
+    trackEvent({
+      eventKey: 'popup.dismissed',
+      popupId: activePopup.value.id,
+      surfaceKey: `popup.${activePopup.value.slug}`,
+      properties: {
+        source: 'popup_manager',
+        trigger: activePopup.value.trigger_type,
+      },
+    })
+  }
+
   isOpen.value = false
 }
 
@@ -193,7 +259,7 @@ function handleTimeTriggers() {
   eligiblePopupsByTrigger('time').forEach((popup) => {
     const timeoutId = window.setTimeout(() => {
       if (!isOpen.value && !isSuppressedByLeadState(popup)) {
-        openPopup(popup)
+        openPopup(popup, 'automatic')
       }
     }, Math.max((popup.trigger_delay ?? 0) * 1000, 0))
 
@@ -213,7 +279,7 @@ function handleScrollTrigger() {
 
   const match = scrollPopups.find((popup) => percentage >= (popup.trigger_scroll ?? 50))
   if (match) {
-    openPopup(match)
+    openPopup(match, 'automatic')
   }
 }
 
@@ -222,7 +288,7 @@ function handleExitIntent(event: MouseEvent) {
 
   const popup = eligiblePopupsByTrigger('exit')[0]
   if (popup) {
-    openPopup(popup)
+    openPopup(popup, 'automatic')
   }
 }
 
@@ -236,7 +302,7 @@ function handleManualTrigger(event: Event) {
   if (!popup) return
 
   event.preventDefault()
-  openPopup(popup)
+  openPopup(popup, 'manual')
 }
 
 function setupTriggers() {
@@ -293,7 +359,7 @@ function submitLead() {
       markSubmissionState(activePopup.value)
 
       if (activePopup.value.post_submit_action === 'redirect' && activePopup.value.post_submit_redirect_url) {
-        closePopup()
+        closePopup('submitted')
         window.location.href = activePopup.value.post_submit_redirect_url
         return
       }
@@ -315,11 +381,16 @@ watch(popupManager, (value) => {
 
 watch(sortedPopups, () => {
   clearTriggers()
+  trackEligiblePopups()
 
   if (sortedPopups.value.length) {
     setupTriggers()
   }
 }, { immediate: true })
+
+watch(pageKey, () => {
+  eligibilityTracked.value = new Set()
+})
 
 onMounted(() => {
   globalLeadCaptured.value = popupManager.value.leadCaptured || window.localStorage.getItem('nojo-lead-captured') === '1'
@@ -349,7 +420,7 @@ onBeforeUnmount(() => {
       leave-to-class="opacity-0"
     >
       <div v-if="isOpen && activePopup" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/55" @click="closePopup" />
+        <div class="absolute inset-0 bg-black/55" @click="closePopup('dismissed')" />
 
         <div class="relative z-10 w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-black/5">
           <div class="flex items-start justify-between border-b border-gray-100 px-6 py-5 md:px-8">
@@ -365,7 +436,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="ml-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50"
-              @click="closePopup"
+              @click="closePopup('dismissed')"
             >
               ×
             </button>
@@ -381,7 +452,7 @@ onBeforeUnmount(() => {
                 <button
                   type="button"
                   class="inline-flex rounded-lg bg-gray-900 px-5 py-3 text-sm font-medium text-white hover:bg-gray-800"
-                  @click="closePopup"
+                  @click="closePopup('completed')"
                 >
                   Close
                 </button>
@@ -463,7 +534,7 @@ onBeforeUnmount(() => {
                     <button
                       type="button"
                       class="inline-flex rounded-lg border border-gray-200 px-5 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                      @click="closePopup"
+                      @click="closePopup('dismissed')"
                     >
                       Not now
                     </button>

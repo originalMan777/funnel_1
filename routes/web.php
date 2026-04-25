@@ -1,14 +1,17 @@
 <?php
 
-use App\Http\Controllers\Admin\AiPostImporterController;
 use App\Http\Controllers\Admin\AcquisitionContactController;
+use App\Http\Controllers\Admin\AiPostImporterController;
+use App\Http\Controllers\Admin\Analytics\InterpretationController as AnalyticsInterpretationController;
+use App\Http\Controllers\Admin\Analytics\OverviewController as AnalyticsOverviewController;
+use App\Http\Controllers\Admin\Analytics\ReportController as AnalyticsReportController;
 use App\Http\Controllers\Admin\BlogIndexSectionController;
 use App\Http\Controllers\Admin\CampaignController;
 use App\Http\Controllers\Admin\CampaignEnrollmentController;
 use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\CommunicationComposerController;
 use App\Http\Controllers\Admin\CommunicationDeliveryController;
 use App\Http\Controllers\Admin\CommunicationEventController;
-use App\Http\Controllers\Admin\CommunicationComposerController;
 use App\Http\Controllers\Admin\CommunicationOverviewController;
 use App\Http\Controllers\Admin\CommunicationSettingsController;
 use App\Http\Controllers\Admin\CommunicationTemplateController;
@@ -25,13 +28,14 @@ use App\Http\Controllers\Admin\PostController as AdminPostController;
 use App\Http\Controllers\Admin\ResourceLeadBoxController;
 use App\Http\Controllers\Admin\ServiceLeadBoxController;
 use App\Http\Controllers\Admin\TagController;
+use App\Http\Controllers\Analytics\IngestController;
 use App\Http\Controllers\ContentFormula\ContentFormulaController;
-use App\Http\Controllers\Public\PopupLeadController;
-use App\Http\Controllers\Public\LeadController;
-use App\Http\Controllers\Public\PostController as PublicPostController;
 use App\Http\Controllers\Public\HomeController;
+use App\Http\Controllers\Public\LeadController;
+use App\Http\Controllers\Public\PopupLeadController;
+use App\Http\Controllers\Public\PostController as PublicPostController;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Route;
-
 use Inertia\Inertia;
 
 Route::get('/buyers-strategy', function () {
@@ -59,6 +63,10 @@ Route::get('/blog-test-page', function () {
 })->name('blog.test.page');
 
 Route::middleware('throttle:10,1')->group(function () {
+    Route::post('/analytics/ingest', IngestController::class)
+        ->withoutMiddleware([VerifyCsrfToken::class])
+        ->name('analytics.ingest');
+
     Route::post('/consultation/request', [LeadController::class, 'storeConsultation'])
         ->name('consultation.request.store');
 
@@ -102,10 +110,10 @@ Route::middleware(['auth', 'admin'])
             ->name('content-formula.config');
 
         Route::get('/posts/archived', [AdminPostController::class, 'archived'])
-        ->name('posts.archived');
+            ->name('posts.archived');
 
         Route::patch('/posts/{post}/archive', [AdminPostController::class, 'archive'])
-        ->name('posts.archive');
+            ->name('posts.archive');
     });
 
 Route::get('/', HomeController::class)->name('home');
@@ -154,6 +162,35 @@ Route::middleware(['auth', 'admin'])
 
         Route::get('/communications', [CommunicationOverviewController::class, 'index'])
             ->name('communications.index');
+        Route::get('/analytics', [AnalyticsOverviewController::class, 'index'])
+            ->name('analytics.index');
+        Route::get('/analytics/metrics', [AnalyticsReportController::class, 'metrics'])
+            ->name('analytics.metrics.index');
+        Route::get('/analytics/graphics-lab', [AnalyticsReportController::class, 'graphicsLab'])
+            ->name('analytics.graphics-lab');
+        Route::get('/analytics/clusters/{clusterKey}', [AnalyticsReportController::class, 'showCluster'])
+            ->name('analytics.clusters.show');
+        Route::get('/analytics/clusters/{clusterKey}/{subClusterKey}/groups/{metricGroupKey}', [AnalyticsReportController::class, 'showMetricGroup']);
+        Route::get('/analytics/clusters/{clusterKey}/{subClusterKey}/{metricGroupKey}', [AnalyticsReportController::class, 'showMetricGroup'])
+            ->name('analytics.metric-groups.show');
+        Route::get('/analytics/clusters/{clusterKey}/{subClusterKey}', [AnalyticsReportController::class, 'showSubCluster'])
+            ->name('analytics.sub-clusters.show');
+        Route::get('/analytics/funnels', [AnalyticsInterpretationController::class, 'funnels'])
+            ->name('analytics.funnels.index');
+        Route::get('/analytics/scenarios', [AnalyticsInterpretationController::class, 'scenarios'])
+            ->name('analytics.scenarios.index');
+        Route::get('/analytics/pages', [AnalyticsReportController::class, 'pages'])
+            ->name('analytics.pages.index');
+        Route::get('/analytics/ctas', [AnalyticsReportController::class, 'ctas'])
+            ->name('analytics.ctas.index');
+        Route::get('/analytics/lead-boxes', [AnalyticsReportController::class, 'leadBoxes'])
+            ->name('analytics.lead-boxes.index');
+        Route::get('/analytics/popups', [AnalyticsReportController::class, 'popups'])
+            ->name('analytics.popups.index');
+        Route::get('/analytics/conversions', [AnalyticsReportController::class, 'conversions'])
+            ->name('analytics.conversions.index');
+        Route::get('/analytics/attribution', [AnalyticsReportController::class, 'attribution'])
+            ->name('analytics.attribution.index');
         Route::get('/communications/events', [CommunicationEventController::class, 'index'])
             ->name('communications.events.index');
         Route::get('/communications/events/{communicationEvent}', [CommunicationEventController::class, 'show'])

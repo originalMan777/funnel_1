@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3'
+import TrackedLink from '@/components/analytics/TrackedLink.vue'
 import FrontLayout from '@/layouts/FrontLayout.vue'
 
 type StrategyArticle = {
@@ -50,19 +51,23 @@ withDefaults(
                     </p>
 
                     <div class="flex flex-wrap gap-4 pt-2">
-                        <Link
+                        <TrackedLink
                             href="/consultation"
+                            cta-key="buyers_strategy.hero.consultation"
+                            surface-key="buyers_strategy.hero"
                             class="inline-flex items-center rounded-xl bg-white px-6 py-3.5 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-stone-100"
                         >
                             Book a Consultation
-                        </Link>
+                        </TrackedLink>
 
-                        <Link
+                        <TrackedLink
                             href="/blog?category=buying"
+                            cta-key="buyers_strategy.hero.articles"
+                            surface-key="buyers_strategy.hero"
                             class="inline-flex items-center rounded-xl border border-white/20 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/10"
                         >
                             Explore Buying Articles
-                        </Link>
+                        </TrackedLink>
                     </div>
                 </div>
             </section>
@@ -261,12 +266,14 @@ withDefaults(
                     </div>
 
                     <div class="flex shrink-0">
-                        <Link
+                        <TrackedLink
                             href="/consultation"
+                            cta-key="buyers_strategy.footer.consultation"
+                            surface-key="buyers_strategy.footer"
                             class="inline-flex items-center rounded-xl bg-slate-900 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800"
                         >
                             Book a Consultation
-                        </Link>
+                        </TrackedLink>
                     </div>
                 </div>
             </section>
