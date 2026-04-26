@@ -133,6 +133,7 @@ const sections: SidebarSection[] = [
     {
         title: 'Tools',
         links: [
+            { name: 'Assessments', route: '/admin/qo' },
             { name: 'Generator', route: '/admin/content-formula' },
             { name: 'Post Importer', route: '/admin/post-importer' },
         ],

@@ -327,3 +327,59 @@ Route::middleware(['auth', 'admin'])
     });
 
 require __DIR__.'/settings.php';
+
+use App\Http\Controllers\Admin\QO\QOItemController;
+
+Route::prefix('admin/qo')->name('admin.qo.')->group(function () {
+    Route::get('/', [QOItemController::class, 'index'])->name('index');
+    Route::get('/create', [QOItemController::class, 'create'])->name('create');
+    Route::post('/', [QOItemController::class, 'store'])->name('store');
+
+    Route::get('/{id}/edit', [QOItemController::class, 'edit'])->name('edit');
+    Route::put('/{id}', [QOItemController::class, 'update'])->name('update');
+
+    Route::post('/{id}/publish', [QOItemController::class, 'publish'])->name('publish');
+    Route::post('/{id}/unpublish', [QOItemController::class, 'unpublish'])->name('unpublish');
+    Route::post('/{id}/archive', [QOItemController::class, 'archive'])->name('archive');
+});
+
+use App\Http\Controllers\Admin\QO\QOQuestionController;
+
+Route::prefix('admin/qo/{itemId}/questions')->name('admin.qo.questions.')->group(function () {
+    Route::post('/', [QOQuestionController::class, 'store'])->name('store');
+    Route::put('/{questionId}', [QOQuestionController::class, 'update'])->name('update');
+    Route::delete('/{questionId}', [QOQuestionController::class, 'destroy'])->name('destroy');
+});
+
+use App\Http\Controllers\Admin\QO\QOOptionController;
+
+Route::prefix('admin/qo/{itemId}/questions/{questionId}/options')->name('admin.qo.options.')->group(function () {
+    Route::post('/', [QOOptionController::class, 'store'])->name('store');
+    Route::put('/{optionId}', [QOOptionController::class, 'update'])->name('update');
+    Route::delete('/{optionId}', [QOOptionController::class, 'destroy'])->name('destroy');
+});
+
+Route::post('admin/qo/{itemId}/questions/{questionId}/options/ensure-yes-no', [QOOptionController::class, 'ensureYesNo'])
+    ->name('admin.qo.options.ensure-yes-no');
+
+Route::post('admin/qo/{itemId}/questions/{questionId}/options/reset-for-type', [QOOptionController::class, 'resetForType'])
+    ->name('admin.qo.options.reset-for-type');
+
+use App\Http\Controllers\Admin\QO\QOOutcomeController;
+
+Route::prefix('admin/qo/{itemId}/outcomes')->name('admin.qo.outcomes.')->group(function () {
+    Route::post('/', [QOOutcomeController::class, 'store'])->name('store');
+    Route::put('/{outcomeId}', [QOOutcomeController::class, 'update'])->name('update');
+    Route::delete('/{outcomeId}', [QOOutcomeController::class, 'destroy'])->name('destroy');
+});
+
+use App\Http\Controllers\QO\QOShowController;
+
+Route::get('/q/{slug}', [QOShowController::class, 'show'])->name('qo.show');
+
+Route::post('/q/{slug}/start', [\App\Http\Controllers\QO\QORuntimeController::class, 'start'])->name('qo.runtime.start');
+Route::post('/q/{slug}/answer', [\App\Http\Controllers\QO\QORuntimeController::class, 'answer'])->name('qo.runtime.answer');
+Route::post('/q/{slug}/complete', [\App\Http\Controllers\QO\QORuntimeController::class, 'complete'])->name('qo.runtime.complete');
+
+Route::get('/admin/qo/{id}/preview', [\App\Http\Controllers\Admin\QO\QOItemController::class, 'preview'])
+    ->name('admin.qo.preview');
