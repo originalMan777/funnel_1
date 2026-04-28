@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AdminLayout from '@/AppLayouts/AdminLayout.vue';
 import Workspace from '@/pages/Admin/LeadBoxes/Resource/Workspace.vue';
 import type { LeadBlockRenderModel } from '@/types/leadBlocks';
@@ -35,6 +35,18 @@ const form = useForm({
 });
 
 const isEdit = computed(() => props.mode === 'edit' && !!props.leadBox);
+
+const duplicateLeadBox = () => {
+    if (!isEdit.value || !props.leadBox) {
+        return;
+    }
+
+    if (!window.confirm('Duplicate this lead box as a draft?')) {
+        return;
+    }
+
+    router.post(route('admin.lead-boxes.duplicate', props.leadBox.id), {}, { preserveScroll: true });
+};
 
 const submit = () => {
     if (isEdit.value) {
@@ -100,6 +112,14 @@ const previewModel = computed<LeadBlockRenderModel>(() => ({
                             >
                                 Offer
                             </Link>
+                            <button
+                                v-if="isEdit"
+                                type="button"
+                                class="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-50"
+                                @click="duplicateLeadBox"
+                            >
+                                Duplicate
+                            </button>
                             <Link
                                 :href="route('admin.lead-boxes.index')"
                                 class="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-50"

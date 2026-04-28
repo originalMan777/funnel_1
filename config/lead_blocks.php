@@ -18,6 +18,16 @@ $slotDefinitions = [
         'required_type' => LeadBox::TYPE_OFFER,
         'page_key' => 'home',
     ],
+    'quiz_entry_top' => [
+        'label' => 'Quiz entry (top)',
+        'required_type' => LeadBox::TYPE_RESOURCE,
+        'page_key' => 'quiz_entry',
+    ],
+    'quiz_entry_bottom' => [
+        'label' => 'Quiz entry (bottom fallback)',
+        'required_type' => LeadBox::TYPE_OFFER,
+        'page_key' => 'quiz_entry',
+    ],
     'blog_index_mid_lead' => [
         'label' => 'Blog index (mid)',
         'required_type' => LeadBox::TYPE_OFFER,

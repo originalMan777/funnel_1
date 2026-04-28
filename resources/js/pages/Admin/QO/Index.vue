@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import AdminLayout from '@/AppLayouts/AdminLayout.vue';
 
 defineOptions({
@@ -19,6 +19,11 @@ defineProps<{
         }>;
     };
 }>();
+function duplicateItem(itemId: number) {
+    if (!confirm('Duplicate this QO item as a draft?')) return;
+
+    router.post(route('admin.qo.duplicate', itemId));
+}
 </script>
 
 <template>
@@ -81,6 +86,14 @@ defineProps<{
                                 >
                                     Live Test
                                 </Link>
+
+                                <button
+                                    type="button"
+                                    class="text-sm font-semibold text-indigo-700 hover:underline"
+                                    @click="duplicateItem(item.id)"
+                                >
+                                    Duplicate
+                                </button>
 
                                 <Link
                                     :href="route('admin.qo.edit', item.id)"

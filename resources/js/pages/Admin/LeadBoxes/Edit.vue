@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import AdminLayout from '@/AppLayouts/AdminLayout.vue';
 
 defineProps<{
@@ -18,6 +18,14 @@ defineProps<{
     icons: string[];
     visualPresets: string[];
 }>();
+
+const duplicateLeadBox = (id: number) => {
+    if (!window.confirm('Duplicate this lead box as a draft?')) {
+        return;
+    }
+
+    router.post(route('admin.lead-boxes.duplicate', id), {}, { preserveScroll: true });
+};
 </script>
 
 <template>
@@ -41,6 +49,13 @@ defineProps<{
                         </div>
 
                         <div class="flex gap-2">
+                            <button
+                                type="button"
+                                class="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-50"
+                                @click="duplicateLeadBox(leadBox.id)"
+                            >
+                                Duplicate
+                            </button>
                             <Link
                                 :href="route('admin.lead-boxes.index')"
                                 class="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-50"

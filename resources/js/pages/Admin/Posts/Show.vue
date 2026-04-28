@@ -44,6 +44,7 @@ const props = defineProps<{
 
 const isPublished = computed(() => props.post.status === 'published');
 const publishing = ref(false);
+const duplicateProcessing = ref(false);
 
 const sectionIds = ['content', 'details', 'seo'] as const;
 type SectionId = (typeof sectionIds)[number];
@@ -194,6 +195,23 @@ onBeforeUnmount(() => {
     sectionObserver?.disconnect();
     sectionObserver = null;
 });
+
+const duplicatePost = () => {
+    if (!window.confirm(`Duplicate "${props.post.title}" as a draft?`)) return;
+
+    duplicateProcessing.value = true;
+
+    router.post(
+        route('admin.posts.duplicate', props.post.id),
+        {},
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                duplicateProcessing.value = false;
+            },
+        },
+    );
+};
 </script>
 
 <template>
@@ -248,6 +266,14 @@ onBeforeUnmount(() => {
                             <PrimaryButton type="button" @click="editPost">
                                 Edit
                             </PrimaryButton>
+                            <SecondaryButton
+                                type="button"
+                                :disabled="duplicateProcessing || publishing"
+                                @click="duplicatePost"
+                            >
+                                {{ duplicateProcessing ? 'Duplicating…' : 'Duplicate' }}
+                            </SecondaryButton>
+
 
                             <SecondaryButton
                                 v-if="isPublished"

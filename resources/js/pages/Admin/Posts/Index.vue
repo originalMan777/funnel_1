@@ -86,6 +86,14 @@ const unpublishPost = (post: PostRow) => {
     });
 };
 
+const duplicatePost = (post: PostRow) => {
+    if (!window.confirm(`Duplicate "${post.title}" as a draft?`)) return;
+
+    router.post(route('admin.posts.duplicate', post.id), {}, {
+        preserveScroll: true,
+    });
+};
+
 const deletePost = (post: PostRow) => {
     if (!window.confirm(`Delete "${post.title}"? This cannot be undone.`)) return;
 
@@ -239,6 +247,14 @@ const deletePost = (post: PostRow) => {
                                                 >
                                                     Edit
                                                 </Link>
+
+                                                <button
+                                                    type="button"
+                                                    class="text-sm font-medium text-blue-600 hover:text-blue-700"
+                                                    @click="duplicatePost(post)"
+                                                >
+                                                    Duplicate
+                                                </button>
 
                                                 <button
                                                     v-if="post.status === 'draft'"

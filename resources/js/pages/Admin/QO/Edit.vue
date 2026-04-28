@@ -308,6 +308,12 @@ function submit() {
     form.post(route('admin.qo.store'));
 }
 
+function duplicateItem() {
+    if (!props.item || !confirm('Duplicate this QO item as a draft?')) return;
+
+    router.post(route('admin.qo.duplicate', props.item.id));
+}
+
 function saveQuestion() {
     if (!props.item || !selectedQuestion.value) return;
 
@@ -449,9 +455,20 @@ function deleteOutcome(outcome: QOOutcome) {
                 </p>
             </div>
 
-            <Link :href="route('admin.qo.index')" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                Back
-            </Link>
+            <div class="flex items-center gap-3">
+                <button
+                    v-if="isEditing"
+                    type="button"
+                    class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+                    @click="duplicateItem"
+                >
+                    Duplicate
+                </button>
+
+                <Link :href="route('admin.qo.index')" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                    Back
+                </Link>
+            </div>
         </div>
 
         <form class="space-y-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm" @submit.prevent="submit">

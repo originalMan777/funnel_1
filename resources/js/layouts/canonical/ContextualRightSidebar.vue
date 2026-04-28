@@ -5,26 +5,23 @@ import { computed, onMounted, ref, watch } from 'vue'
 type SidebarItem = { label: string; value?: string }
 
 const page = usePage<any>()
-const cfg = computed(() => page.props.ui?.rightSidebar ?? { enabled: true })
-
-// const enabled = computed(() => !!cfg.value.enabled)
+const cfg = computed(() => page.props?.ui?.rightSidebar ?? { enabled: true })
+const enabled = computed(() => cfg.value.enabled !== false)
 const title = computed(() => cfg.value.title ?? 'Context')
 const items = computed<SidebarItem[]>(() => cfg.value.items ?? [])
-
 const collapsible = computed(() => cfg.value.collapsible !== false)
 
 const isOpen = ref(true)
-
 const widthPx = computed(() => (typeof cfg.value.width === 'number' ? cfg.value.width : 280))
 const collapsedWidthPx = computed(() =>
   typeof cfg.value.collapsedWidth === 'number' ? cfg.value.collapsedWidth : 44
 )
-
 const currentWidth = computed(() => (isOpen.value ? widthPx.value : collapsedWidthPx.value))
 const STORAGE_KEY = 'ui.rightSidebar.isOpen'
 
 onMounted(() => {
-  // If server explicitly controls collapsed/open, follow it
+  if (!enabled.value) return
+
   if (typeof cfg.value.collapsed === 'boolean') {
     isOpen.value = !cfg.value.collapsed
     return
@@ -47,6 +44,8 @@ watch(
 )
 
 watch(isOpen, (val) => {
+  if (!enabled.value) return
+
   try {
     localStorage.setItem(STORAGE_KEY, val ? '1' : '0')
   } catch {
@@ -62,7 +61,7 @@ function toggle() {
 
 <template>
   <aside
-
+    v-if="enabled"
     class="h-full shrink-0 overflow-hidden border-l border-gray-200 bg-gray-50 transition-[width] duration-200"
     :style="{
       width: `${currentWidth}px`,
@@ -86,7 +85,7 @@ function toggle() {
       </button>
     </div>
 
-    <div v-show="isOpen" class="flex-1 overflow-y-auto p-4 space-y-2">
+    <div v-show="isOpen" class="flex-1 space-y-2 overflow-y-auto p-4">
       <div v-if="items.length === 0" class="text-sm text-gray-500">No context.</div>
 
       <div v-for="(item, idx) in items" :key="idx" class="text-sm">

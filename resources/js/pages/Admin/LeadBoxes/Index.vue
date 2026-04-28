@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AdminLayout from '@/AppLayouts/AdminLayout.vue';
 
@@ -75,6 +75,14 @@ const formattedUpdatedAt = (updatedAt: string | null) => {
         hour: 'numeric',
         minute: '2-digit',
     }).format(parsed);
+};
+
+const duplicateLeadBox = (leadBox: LeadBox) => {
+    if (!window.confirm('Duplicate this lead box as a draft?')) {
+        return;
+    }
+
+    router.post(route('admin.lead-boxes.duplicate', leadBox.id), {}, { preserveScroll: true });
 };
 
 const editRoute = (leadBox: LeadBox) => {
@@ -201,12 +209,21 @@ const editRoute = (leadBox: LeadBox) => {
                                             {{ formattedUpdatedAt(leadBox.updated_at) }}
                                         </td>
                                         <td class="px-6 py-4 align-top text-right">
-                                            <Link
-                                                :href="editRoute(leadBox)"
-                                                class="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-50"
-                                            >
-                                                Edit
-                                            </Link>
+                                            <div class="flex justify-end gap-2">
+                                                <button
+                                                    type="button"
+                                                    class="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-50"
+                                                    @click="duplicateLeadBox(leadBox)"
+                                                >
+                                                    Duplicate
+                                                </button>
+                                                <Link
+                                                    :href="editRoute(leadBox)"
+                                                    class="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-50"
+                                                >
+                                                    Edit
+                                                </Link>
+                                            </div>
                                         </td>
                                     </tr>
                                 </tbody>
@@ -229,12 +246,21 @@ const editRoute = (leadBox: LeadBox) => {
                                         </h2>
                                     </div>
 
-                                    <Link
-                                        :href="editRoute(leadBox)"
-                                        class="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-50"
-                                    >
-                                        Edit
-                                    </Link>
+                                    <div class="flex shrink-0 flex-col gap-2">
+                                        <button
+                                            type="button"
+                                            class="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-50"
+                                            @click="duplicateLeadBox(leadBox)"
+                                        >
+                                            Duplicate
+                                        </button>
+                                        <Link
+                                            :href="editRoute(leadBox)"
+                                            class="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-50"
+                                        >
+                                            Edit
+                                        </Link>
+                                    </div>
                                 </div>
 
                                 <div class="flex flex-wrap gap-2">

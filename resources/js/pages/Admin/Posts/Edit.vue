@@ -623,6 +623,7 @@ const save = () => {
 };
 
 const publishing = ref(false);
+const duplicateProcessing = ref(false);
 
 const publish = () => {
     publishing.value = true;
@@ -653,6 +654,23 @@ const unpublish = () => {
             preserveScroll: true,
             onFinish: () => {
                 publishing.value = false;
+            },
+        },
+    );
+};
+
+const duplicatePost = () => {
+    if (!window.confirm(`Duplicate "${props.post.title}" as a draft?`)) return;
+
+    duplicateProcessing.value = true;
+
+    router.post(
+        route('admin.posts.duplicate', props.post.id),
+        {},
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                duplicateProcessing.value = false;
             },
         },
     );
@@ -703,6 +721,14 @@ const unpublish = () => {
                                 <PrimaryButton type="submit" :disabled="form.processing">
                                     {{ form.processing ? 'Saving…' : 'Save' }}
                                 </PrimaryButton>
+
+                                <SecondaryButton
+                                    type="button"
+                                    :disabled="duplicateProcessing || form.processing || publishing"
+                                    @click="duplicatePost"
+                                >
+                                    {{ duplicateProcessing ? 'Duplicating…' : 'Duplicate' }}
+                                </SecondaryButton>
 
                                 <SecondaryButton
                                     v-if="isPublished"

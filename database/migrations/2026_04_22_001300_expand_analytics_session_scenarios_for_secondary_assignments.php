@@ -9,14 +9,29 @@ return new class extends Migration
 {
     private function indexExists(string $table, string $index): bool
     {
-        return collect(DB::select("SHOW INDEX FROM {$table} WHERE Key_name = ?", [$index]))->isNotEmpty();
+        $driver = DB::connection()->getDriverName();
+
+        if ($driver === 'sqlite') {
+            return collect(DB::select("PRAGMA index_list({$table})"))
+                ->contains(fn ($row) => ($row->name ?? null) === $index);
+        }
+
+        if ($driver === 'mysql') {
+            return collect(DB::select("SHOW INDEX FROM {$table} WHERE Key_name = ?", [$index]))
+                ->isNotEmpty();
+        }
+
+        return collect(Schema::getIndexes($table))
+            ->contains(fn ($row) => ($row['name'] ?? null) === $index);
     }
 
     public function up(): void
     {
         if (! Schema::hasColumn('analytics_session_scenarios', 'assignment_type')) {
             Schema::table('analytics_session_scenarios', function (Blueprint $table) {
-                $table->string('assignment_type', 16)->default('primary')->after('scenario_definition_id');
+                $table->string('assignment_type', 16)
+                    ->default('primary')
+                    ->after('scenario_definition_id');
             });
         }
 
@@ -24,6 +39,12 @@ return new class extends Migration
             ->whereNull('assignment_type')
             ->orWhere('assignment_type', '')
             ->update(['assignment_type' => 'primary']);
+
+        if ($this->indexExists('analytics_session_scenarios', 'analytics_session_scenarios_session_id_unique')) {
+            Schema::table('analytics_session_scenarios', function (Blueprint $table) {
+                $table->dropUnique('analytics_session_scenarios_session_id_unique');
+            });
+        }
 
         if (! $this->indexExists('analytics_session_scenarios', 'analytics_session_scenarios_session_definition_type_unique')) {
             Schema::table('analytics_session_scenarios', function (Blueprint $table) {
@@ -42,12 +63,6 @@ return new class extends Migration
                 );
             });
         }
-
-        if ($this->indexExists('analytics_session_scenarios', 'analytics_session_scenarios_session_id_unique')) {
-            Schema::table('analytics_session_scenarios', function (Blueprint $table) {
-                $table->dropUnique('analytics_session_scenarios_session_id_unique');
-            });
-        }
     }
 
     public function down(): void
@@ -64,15 +79,15 @@ return new class extends Migration
             });
         }
 
-        if (Schema::hasColumn('analytics_session_scenarios', 'assignment_type')) {
-            Schema::table('analytics_session_scenarios', function (Blueprint $table) {
-                $table->dropColumn('assignment_type');
-            });
-        }
-
         if (! $this->indexExists('analytics_session_scenarios', 'analytics_session_scenarios_session_id_unique')) {
             Schema::table('analytics_session_scenarios', function (Blueprint $table) {
                 $table->unique('session_id');
+            });
+        }
+
+        if (Schema::hasColumn('analytics_session_scenarios', 'assignment_type')) {
+            Schema::table('analytics_session_scenarios', function (Blueprint $table) {
+                $table->dropColumn('assignment_type');
             });
         }
     }

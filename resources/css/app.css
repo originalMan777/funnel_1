@@ -169,4 +169,48 @@
     body {
         @apply bg-background text-foreground;
     }
+
+
+@layer components {
+    button,
+    [role='button'],
+    a.button,
+    .btn,
+    .haptic-button {
+        @apply transition-all duration-150 ease-out active:translate-y-[2px] active:scale-[0.98];
+    }
+
+    a {
+        @apply transition-colors duration-150;
+    }
+
+    a:active {
+        @apply opacity-80;
+    }
+}
+
+}
+
+/* =========================================================
+   Global Haptic Interaction System
+   Purpose: gives buttons/CTA-style links visible press feedback
+   ========================================================= */
+
+@layer components {
+    button,
+    [role='button'],
+    a.button,
+    .btn,
+    .haptic-button,
+    .cta-button {
+        @apply transition-all duration-150 ease-out active:translate-y-[2px] active:scale-[0.98];
+    }
+
+    a {
+        @apply transition-colors duration-150;
+    }
+
+    a:active {
+        @apply opacity-80;
+    }
 }

@@ -32,6 +32,7 @@ use App\Http\Controllers\Analytics\IngestController;
 use App\Http\Controllers\ContentFormula\ContentFormulaController;
 use App\Http\Controllers\Public\HomeController;
 use App\Http\Controllers\Public\LeadController;
+use App\Http\Controllers\Public\MagnetEntryController;
 use App\Http\Controllers\Public\PopupLeadController;
 use App\Http\Controllers\Public\PostController as PublicPostController;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -117,6 +118,7 @@ Route::middleware(['auth', 'admin'])
     });
 
 Route::get('/', HomeController::class)->name('home');
+Route::get('/entry/quiz', [MagnetEntryController::class, 'quiz'])->name('entry.quiz');
 
 Route::get('/about', function () {
     return Inertia::render('About');

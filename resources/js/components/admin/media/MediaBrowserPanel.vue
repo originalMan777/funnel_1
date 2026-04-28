@@ -445,8 +445,8 @@ const formatDate = (value: string | null) => {
                             class="h-[184px] overflow-x-hidden overflow-y-auto rounded-xl bg-white ring-1 ring-black/5"
                         >
                             <div
-                                class="grid grid-cols-4 gap-x-2 gap-y-4 p-2 sm:grid-cols-6 lg:grid-cols-8"
-                                style="grid-auto-rows: 80px"
+                                class="grid grid-cols-4 gap-4 p-2 sm:grid-cols-6 lg:grid-cols-8"
+                                style="grid-auto-rows: 100px"
                             >
                                 <div
                                     v-for="item in media.data"
