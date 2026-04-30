@@ -1,17 +1,18 @@
 import type { Component } from 'vue';
 
-import VisualConsoleDisplayNumber from '@/components/admin/analytics/visuals/VisualConsoleDisplayNumber.vue';
-import VisualHalfDonutMovingDot from '@/components/admin/analytics/visuals/VisualHalfDonutMovingDot.vue';
+import VisualAreaTrend from '@/components/admin/analytics/visuals/VisualAreaTrend.vue';
+import VisualCompactDataTable from '@/components/admin/analytics/visuals/VisualCompactDataTable.vue';
+import VisualFlowMovement from '@/components/admin/analytics/visuals/VisualFlowMovement.vue';
+import VisualGoalProgress from '@/components/admin/analytics/visuals/VisualGoalProgress.vue';
 import VisualHeavyDonutContrast from '@/components/admin/analytics/visuals/VisualHeavyDonutContrast.vue';
-import VisualHeavyDonutDistribution from '@/components/admin/analytics/visuals/VisualHeavyDonutDistribution.vue';
 import VisualScreenTileNumber from '@/components/admin/analytics/visuals/VisualScreenTileNumber.vue';
-import VisualStraightStrengthTrack from '@/components/admin/analytics/visuals/VisualStraightStrengthTrack.vue';
-import VisualTacticalDonutDistribution from '@/components/admin/analytics/visuals/VisualTacticalDonutDistribution.vue';
-import VisualHardEdgeComparisonBars from '@/components/admin/analytics/visuals/VisualHardEdgeComparisonBars.vue';
+import VisualSignedNumberGauge from '@/components/admin/analytics/visuals/VisualSignedNumberGauge.vue';
+import VisualSplitFlowTransfer from '@/components/admin/analytics/visuals/VisualSplitFlowTransfer.vue';
 import VisualStackedBlockComparison from '@/components/admin/analytics/visuals/VisualStackedBlockComparison.vue';
-import VisualRankedSourceTable from '@/components/admin/analytics/visuals/VisualRankedSourceTable.vue';
-import VisualRangeVariance from '@/components/admin/analytics/visuals/VisualRangeVariance.vue';
-import VisualDeltaChange from '@/components/admin/analytics/visuals/VisualDeltaChange.vue';
+import VisualStraightStrengthTrack from '@/components/admin/analytics/visuals/VisualStraightStrengthTrack.vue';
+import VisualTaperedFunnel from '@/components/admin/analytics/visuals/VisualTaperedFunnel.vue';
+import VisualGridHeatmap from '@/components/admin/analytics/visuals/VisualGridHeatmap.vue';
+import VisualLinearHeatmap from '@/components/admin/analytics/visuals/VisualLinearHeatmap.vue';
 
 
 export type SandboxVisual = {
@@ -40,27 +41,6 @@ export const visualSandboxRegistry: SandboxVisual[] = [
         component: VisualScreenTileNumber,
     },
     {
-        key: 'console-display-number',
-        name: 'Console Display Number',
-        status: 'Accepted',
-        purpose: 'Operator-style numeric display for a high-signal KPI value.',
-        label: 'Pipeline Value',
-        value: '$128K',
-        meta: 'Qualified opportunity total',
-        foot: 'Operator display panel',
-        component: VisualConsoleDisplayNumber,
-    },
-    {
-        key: 'half-donut-moving-dot',
-        name: 'Half Donut — Moving Dot',
-        status: 'Accepted',
-        purpose: 'Strength indicator where the marker travels across a weak-to-strong arc.',
-        label: 'Signal Strength',
-        value: '72',
-        meta: 'Dot travels across the arc',
-        component: VisualHalfDonutMovingDot,
-    },
-    {
         key: 'straight-strength-track',
         name: 'Straight Strength Track / Hard Marker',
         status: 'Accepted',
@@ -69,20 +49,6 @@ export const visualSandboxRegistry: SandboxVisual[] = [
         value: '72',
         meta: 'Hard marker across strength track',
         component: VisualStraightStrengthTrack,
-    },
-    {
-        key: 'heavy-donut-distribution',
-        name: 'Donut — Heavy Segments',
-        status: 'Testing',
-        purpose: 'Bold distribution visual for comparing source share at a glance.',
-        label: 'Traffic Sources',
-        meta: 'Bold distribution visual',
-        component: VisualHeavyDonutDistribution,
-        data: [
-            { label: 'Google', value: 50, color: '#22c55e' },
-            { label: 'Facebook', value: 30, color: '#f59e0b' },
-            { label: 'Direct', value: 20, color: '#ef4444' },
-        ],
     },
     {
         key: 'heavy-donut-contrast',
@@ -99,97 +65,110 @@ export const visualSandboxRegistry: SandboxVisual[] = [
         ],
     },
     {
-        key: 'tactical-donut-distribution',
-        name: 'Donut — Tactical Blocks',
+        key: 'stacked-block-comparison',
+        name: 'Stacked Block Comparison',
         status: 'Testing',
-        purpose: 'Higher-contrast donut candidate for immediate distribution readability.',
-        label: 'Traffic Sources',
-        meta: 'Immediate readability test',
-        component: VisualTacticalDonutDistribution,
+        purpose: 'Hard-edge stacked comparison blocks with a side index.',
+        label: 'Source Stack',
+        meta: 'Stacked comparison blocks',
+        component: VisualStackedBlockComparison,
         data: [
-            { label: 'Google', value: 50, color: '#84cc16' },
-            { label: 'Facebook', value: 30, color: '#eab308' },
-            { label: 'Direct', value: 20, color: '#dc2626' },
+            { label: 'Google', value: 82, color: '#2563eb', meta: 'Highest signal' },
+            { label: 'Facebook', value: 64, color: '#7c3aed', meta: 'Strong mid-tier' },
+            { label: 'Direct', value: 48, color: '#16a34a', meta: 'Stable baseline' },
+            { label: 'Referral', value: 31, color: '#dc2626', meta: 'Needs lift' },
         ],
     },
     {
-    key: 'hard-edge-comparison-bars',
-    name: 'Hard Edge Comparison Bars',
+        key: 'flow-movement',
+        name: 'Flow Movement',
+        status: 'Testing',
+        purpose: 'Shows movement through funnel stages.',
+        label: 'Lead Flow',
+        meta: 'Movement through funnel stages',
+        component: VisualFlowMovement,
+        data: [
+            { label: 'Visitor', value: 100, color: '#2563eb', meta: 'Entry traffic' },
+            { label: 'Engaged', value: 72, color: '#7c3aed', meta: 'Interacted' },
+            { label: 'Captured', value: 38, color: '#16a34a', meta: 'Submitted lead' },
+            { label: 'Qualified', value: 21, color: '#dc2626', meta: 'High intent' },
+        ],
+    },
+    {
+        key: 'split-flow-transfer',
+        name: 'Split Flow Transfer',
+        status: 'Testing',
+        purpose: 'Shows one transition split into continuation and drop-off.',
+        label: 'Flow Transfer',
+        meta: 'Continue vs drop-off movement',
+        component: VisualSplitFlowTransfer,
+    },
+    {
+        key: 'signed-number-gauge',
+        name: 'Signed Number Gauge',
+        status: 'Testing',
+        purpose: 'Number visual for negative, zero, and positive movement.',
+        label: 'Net Change',
+        meta: 'Negative / zero / positive signal',
+        component: VisualSignedNumberGauge,
+    },
+    {
+        key: 'goal-progress',
+        name: 'Goal Progress',
+        status: 'Testing',
+        purpose: 'Shows progress toward a defined target.',
+        label: 'Monthly Lead Goal',
+        meta: 'Current progress toward target',
+        component: VisualGoalProgress,
+    },
+    {
+        key: 'area-trend',
+        name: 'Area Trend',
+        status: 'Testing',
+        purpose: 'Filled trend visual showing activity volume over time.',
+        label: 'Lead Activity',
+        value: '1,842',
+        meta: '30-day activity volume',
+        component: VisualAreaTrend,
+    },
+    {
+        key: 'compact-data-table',
+        name: 'Compact Data Table',
+        status: 'Testing',
+        purpose: 'Structured multi-field table for exact analytics values.',
+        label: 'Source Performance',
+        meta: 'Structured lead source breakdown',
+        component: VisualCompactDataTable,
+    },
+    {
+        key: 'tapered-funnel',
+        name: 'Tapered Funnel',
+        status: 'Testing',
+        purpose: 'True funnel shape with inward taper.',
+        label: 'Funnel',
+        meta: 'Tapered conversion flow',
+        component: VisualTaperedFunnel,
+    },
+
+    {
+    key: 'grid-heatmap',
+    name: 'Grid Heatmap',
     status: 'Testing',
-    purpose: 'Sharp comparison visual with hard edges and thin white outlines.',
-    label: 'Source Comparison',
-    meta: 'Hard-edge ranked performance',
-    component: VisualHardEdgeComparisonBars,
-    data: [
-        { label: 'Google', value: 82, color: '#2563eb', meta: 'Highest signal' },
-        { label: 'Facebook', value: 64, color: '#7c3aed', meta: 'Strong mid-tier' },
-        { label: 'Direct', value: 48, color: '#16a34a', meta: 'Stable baseline' },
-        { label: 'Referral', value: 31, color: '#dc2626', meta: 'Needs lift' },
-    ],
+    purpose: 'Shows intensity across a grid using color instead of numbers.',
+    label: 'Heatmap',
+    meta: 'Activity intensity grid',
+    component: VisualGridHeatmap,
 },
 
 {
-    key: 'stacked-block-comparison',
-    name: 'Stacked Block Comparison',
+    key: 'linear-heatmap',
+    name: 'Linear Heatmap',
     status: 'Testing',
-    purpose: 'Hard-edge stacked comparison blocks with a side index.',
-    label: 'Source Stack',
-    meta: 'Stacked comparison blocks',
-    component: VisualStackedBlockComparison,
-    data: [
-        { label: 'Google', value: 82, color: '#2563eb', meta: 'Highest signal' },
-        { label: 'Facebook', value: 64, color: '#7c3aed', meta: 'Strong mid-tier' },
-        { label: 'Direct', value: 48, color: '#16a34a', meta: 'Stable baseline' },
-        { label: 'Referral', value: 31, color: '#dc2626', meta: 'Needs lift' },
-    ],
+    purpose: 'Shows intensity across a single sequence using heat blocks.',
+    label: 'Intensity Strip',
+    meta: 'Activity concentration across one sequence',
+    component: VisualLinearHeatmap,
 },
 
-{
-    key: 'ranked-source-table',
-    name: 'Ranked Source Table',
-    status: 'Testing',
-    purpose: 'Premium ranking table for top performers with gradient signal bars.',
-    label: 'Source Ranking',
-    meta: 'Top performers by conversion signal',
-    component: VisualRankedSourceTable,
-    data: [
-        { rank: 1, label: 'Google Search', value: 82, color: '#2563eb', meta: 'Lead quality', change: '+12%' },
-        { rank: 2, label: 'LinkedIn', value: 71, color: '#7c3aed', meta: 'B2B intent', change: '+8%' },
-        { rank: 3, label: 'Direct Traffic', value: 58, color: '#16a34a', meta: 'Returning visitors', change: '+4%' },
-        { rank: 4, label: 'Facebook Ads', value: 43, color: '#dc2626', meta: 'Cold traffic', change: '-3%' },
-    ],
-},
-
-{
-    key: 'range-variance',
-    name: 'Range Variance',
-    status: 'Testing',
-    purpose: 'Shows position within a defined performance range.',
-    label: 'Range Variance',
-    meta: 'Position inside min → max',
-    component: VisualRangeVariance,
-    data: [
-        { label: 'Google', min: 20, max: 90, value: 72, color: '#2563eb', meta: 'Strong range' },
-        { label: 'Facebook', min: 10, max: 80, value: 55, color: '#7c3aed', meta: 'Mid performance' },
-        { label: 'Direct', min: 30, max: 85, value: 48, color: '#16a34a', meta: 'Stable baseline' },
-        { label: 'Referral', min: 5, max: 60, value: 25, color: '#dc2626', meta: 'Low band' },
-    ],
-},
-
-{
-    key: 'delta-change',
-    name: 'Delta Change',
-    status: 'Testing',
-    purpose: 'Shows movement from previous period to current period.',
-    label: 'Delta Change',
-    meta: 'Previous vs current movement',
-    component: VisualDeltaChange,
-    data: [
-        { label: 'Google', previous: 64, current: 82, color: '#2563eb', meta: 'Search traffic lift' },
-        { label: 'LinkedIn', previous: 58, current: 71, color: '#7c3aed', meta: 'B2B intent rising' },
-        { label: 'Direct', previous: 61, current: 54, color: '#16a34a', meta: 'Returning visitors dipped' },
-        { label: 'Facebook', previous: 49, current: 43, color: '#dc2626', meta: 'Cold traffic down' },
-    ],
-},
 
 ];
