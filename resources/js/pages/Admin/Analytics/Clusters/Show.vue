@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import AdminLayout from '@/AppLayouts/AdminLayout.vue';
 import AnalyticsHeader from '@/components/admin/analytics/AnalyticsHeader.vue';
 import AnalyticsShell from '@/components/admin/analytics/AnalyticsShell.vue';
+import MetricFocusModal from '@/components/admin/analytics/MetricFocusModal.vue';
 import SubClusterVisualCard from '@/components/admin/analytics/SubClusterVisualCard.vue';
 
 type ClusterMetric = {
@@ -11,9 +12,19 @@ type ClusterMetric = {
     label: string;
     value: string | number;
     displayValue?: string | number | null;
+    definition?: string | null;
     description?: string | null;
     helper?: string | null;
+    dataSource?: string | null;
+    status?: 'good' | 'warning' | 'poor' | 'neutral' | string | null;
+    statusLabel?: string | null;
+    trendLabel?: string | null;
+    delta?: string | number | null;
     insight?: string | null;
+    recommendation?: string | null;
+    formula?: string | null;
+    whyItMatters?: string | null;
+    affects?: string[];
 };
 
 type ClusterMetricGroup = {
@@ -60,6 +71,26 @@ const currentRoute = computed(() =>
         clusterKey: props.cluster.key,
     }),
 );
+
+const selectedMetricContext = ref<{
+    metric: ClusterMetric;
+    subCluster: ClusterSubCluster;
+    metricGroup: ClusterMetricGroup;
+} | null>(null);
+const metricModalOpen = ref(false);
+
+const openMetric = (payload: {
+    metric: ClusterMetric;
+    subCluster: ClusterSubCluster;
+    metricGroup: ClusterMetricGroup;
+}) => {
+    selectedMetricContext.value = payload;
+    metricModalOpen.value = true;
+};
+
+const closeMetric = () => {
+    metricModalOpen.value = false;
+};
 </script>
 
 <template>
@@ -113,9 +144,20 @@ const currentRoute = computed(() =>
                         :key="subCluster.key"
                         :cluster="cluster"
                         :sub-cluster="subCluster"
+                        @select-metric="openMetric"
                     />
                 </div>
             </section>
+
+            <MetricFocusModal
+                :metric="selectedMetricContext?.metric ?? null"
+                :open="metricModalOpen"
+                :cluster="cluster"
+                :sub-cluster="selectedMetricContext?.subCluster ?? null"
+                :metric-group="selectedMetricContext?.metricGroup ?? null"
+                :available-metrics="selectedMetricContext?.metricGroup.metrics ?? []"
+                @close="closeMetric"
+            />
         </AnalyticsShell>
     </AdminLayout>
 </template>

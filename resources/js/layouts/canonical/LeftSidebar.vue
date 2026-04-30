@@ -96,7 +96,7 @@ type SidebarLink = { name: string; route: string };
 type SidebarSection = { title: string; links: SidebarLink[] };
 
 const visibleCountFor = (section: SidebarSection) =>
-    section.title === 'Communications' ? 4 : section.title === 'Analytics' ? 3 : 2;
+    section.title === 'Communications' ? 4 : section.title === 'Analytics' ? 4 : 2;
 
 const page = usePage();
 const currentUrl = computed(() => String(page.url || ''));
@@ -183,6 +183,8 @@ const sections: SidebarSection[] = [
         links: [
             { name: 'Overview', route: '/admin/analytics' },
             { name: 'Metrics Catalog', route: '/admin/analytics/metrics' },
+            { name: 'Graphics Lab', route: '/admin/analytics/graphics-lab' },
+            { name: 'Visual Workbench', route: '/admin/analytics/visual-workbench' },
             { name: 'Funnels', route: '/admin/analytics/funnels' },
             { name: 'Scenarios', route: '/admin/analytics/scenarios' },
             { name: 'Pages', route: '/admin/analytics/pages' },

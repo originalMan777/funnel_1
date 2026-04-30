@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\QO;
 
 use App\Http\Controllers\Controller;
+use App\Models\QOCapture;
 use App\Models\QOItem;
 use App\Models\QOSubmission;
 use App\Services\QO\AdvanceQOSubmissionService;
@@ -79,6 +80,50 @@ class QORuntimeController extends Controller
             'feedback' => $result['feedback'],
             'is_complete_ready' => $result['is_complete_ready'],
             'answers_count' => $result['answers']->count(),
+        ]);
+    }
+
+    public function capture(Request $request, string $slug)
+    {
+        $data = $request->validate([
+            'submission_id' => ['nullable', 'integer'],
+            'stage' => ['required', 'in:pre_start,mid_assessment,pre_result,post_result'],
+            'name' => ['nullable', 'string', 'max:255'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'payload_json' => ['nullable', 'array'],
+            'is_preview' => ['nullable', 'boolean'],
+        ]);
+
+        $item = QOItem::query()
+            ->where('slug', $slug)
+            ->firstOrFail();
+
+        $submission = null;
+
+        if (! empty($data['submission_id'])) {
+            $submission = QOSubmission::query()
+                ->where('id', $data['submission_id'])
+                ->where('qo_item_id', $item->id)
+                ->firstOrFail();
+        }
+
+        $capture = QOCapture::create([
+            'qo_item_id' => $item->id,
+            'qo_submission_id' => $submission?->id,
+            'stage' => $data['stage'],
+            'name' => $data['name'] ?? null,
+            'email' => $data['email'] ?? null,
+            'phone' => $data['phone'] ?? null,
+            'payload_json' => $data['payload_json'] ?? null,
+            'is_preview' => ! empty($data['is_preview']) || $submission?->is_preview === true,
+        ]);
+
+        return response()->json([
+            'id' => $capture->id,
+            'stage' => $capture->stage,
+            'is_preview' => $capture->is_preview,
+            'message' => 'Information saved.',
         ]);
     }
 

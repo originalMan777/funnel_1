@@ -90,6 +90,11 @@ class QOItem extends Model
         return $this->hasMany(QOSubmission::class, 'qo_item_id');
     }
 
+    public function captures(): HasMany
+    {
+        return $this->hasMany(QOCapture::class, 'qo_item_id');
+    }
+
     public function promoRules(): HasMany
     {
         return $this->hasMany(QOPromoRule::class, 'qo_item_id')

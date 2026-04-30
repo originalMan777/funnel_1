@@ -20,6 +20,7 @@ return [
         'consultation' => 'consultation',
         'resources' => 'resources',
         'contact' => 'contact',
+        'qo.show' => 'qo',
     ],
 
     'route_prefix_keys' => [
@@ -40,5 +41,6 @@ return [
 
     'path_prefix_keys' => [
         'blog' => 'blog',
+        'q/' => 'qo',
     ],
 ];

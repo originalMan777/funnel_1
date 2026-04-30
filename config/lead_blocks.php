@@ -58,6 +58,31 @@ $slotDefinitions = [
         'required_type' => LeadBox::TYPE_OFFER,
         'page_key' => 'blog_show',
     ],
+    'qo_pre_start' => [
+        'label' => 'QO Pre-Start',
+        'required_type' => LeadBox::TYPE_RESOURCE,
+        'page_key' => 'qo',
+    ],
+    'qo_mid_assessment' => [
+        'label' => 'QO Mid-Assessment',
+        'required_type' => LeadBox::TYPE_RESOURCE,
+        'page_key' => 'qo',
+    ],
+    'qo_pre_result' => [
+        'label' => 'QO Pre-Result',
+        'required_type' => LeadBox::TYPE_OFFER,
+        'page_key' => 'qo',
+    ],
+    'qo_post_result' => [
+        'label' => 'QO Post-Result',
+        'required_type' => LeadBox::TYPE_OFFER,
+        'page_key' => 'qo',
+    ],
+    'qo_footer' => [
+        'label' => 'QO Footer',
+        'required_type' => LeadBox::TYPE_OFFER,
+        'page_key' => 'qo',
+    ],
 ];
 
 $pageSlots = [];

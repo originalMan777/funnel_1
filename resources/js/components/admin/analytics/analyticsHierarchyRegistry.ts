@@ -40,6 +40,9 @@ export type AnalyticsMetricDefinition = {
     key: AnalyticsMetricKey;
     label: string;
     description: string;
+    clusterKey?: AnalyticsClusterKey;
+    subClusterKey?: AnalyticsSubClusterKey;
+    metricGroupKey?: string;
 };
 
 export type AnalyticsMetricGroupDefinition = {
@@ -560,6 +563,12 @@ const materializeSubCluster = (
     href: buildAnalyticsSubClusterHref(clusterKey, subCluster.key, filters),
     metricGroups: subCluster.metricGroups.map((metricGroup) => ({
         ...metricGroup,
+        metrics: metricGroup.metrics.map((metric) => ({
+            ...metric,
+            clusterKey,
+            subClusterKey: subCluster.key,
+            metricGroupKey: metricGroup.key,
+        })),
         href: null,
     })),
 });

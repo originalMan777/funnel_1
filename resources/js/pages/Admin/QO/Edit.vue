@@ -39,8 +39,12 @@ type QOOutcome = {
     id: number;
     outcome_key: string;
     title: string;
+    result_headline: string | null;
     summary: string | null;
     body: string | null;
+    interpretation: string | null;
+    breakdown_points: string[] | null;
+    next_steps: string[] | null;
     min_score: number | null;
     max_score: number | null;
     category_key: string | null;
@@ -48,6 +52,76 @@ type QOOutcome = {
     cta_url: string | null;
     lead_box_id: number | null;
 };
+
+type CtaSlotKey = 'pre_start' | 'mid_assessment' | 'pre_result' | 'post_result';
+
+type CtaSlot = {
+    enabled: boolean;
+    intent: 'low' | 'medium' | 'high' | 'ultra';
+    behavior: 'optional' | 'required' | 'hidden';
+    headline: string;
+    body: string;
+    primary_label: string;
+};
+
+const CTA_SLOT_KEYS: CtaSlotKey[] = ['pre_start', 'mid_assessment', 'pre_result', 'post_result'];
+
+const DEFAULT_CTA_CONFIG: Record<CtaSlotKey, CtaSlot> = {
+    pre_start: {
+        enabled: true,
+        intent: 'low',
+        behavior: 'optional',
+        headline: 'Get the full breakdown after your assessment.',
+        body: 'Your score is only the surface. Reserve the expanded breakdown and next-step plan.',
+        primary_label: 'Save My Breakdown',
+    },
+    mid_assessment: {
+        enabled: true,
+        intent: 'medium',
+        behavior: 'optional',
+        headline: 'You are halfway through.',
+        body: 'Keep going. This slot can later connect to a progress-based offer or lead magnet.',
+        primary_label: 'Save My Progress',
+    },
+    pre_result: {
+        enabled: true,
+        intent: 'high',
+        behavior: 'optional',
+        headline: 'Unlock the meaning behind your result.',
+        body: 'Turn your answers into a useful breakdown with next-step direction.',
+        primary_label: 'Unlock My Result',
+    },
+    post_result: {
+        enabled: true,
+        intent: 'ultra',
+        behavior: 'optional',
+        headline: 'Get your next-step action plan.',
+        body: 'Use this result as the starting point for a stronger plan, consultation, or conversion path.',
+        primary_label: 'Get My Action Plan',
+    },
+};
+
+function ctaConfigDefaults(): Record<CtaSlotKey, CtaSlot> {
+    return {
+        pre_start: { ...DEFAULT_CTA_CONFIG.pre_start },
+        mid_assessment: { ...DEFAULT_CTA_CONFIG.mid_assessment },
+        pre_result: { ...DEFAULT_CTA_CONFIG.pre_result },
+        post_result: { ...DEFAULT_CTA_CONFIG.post_result },
+    };
+}
+
+function normalizeCtaConfig(config?: Record<string, CtaSlot> | null): Record<CtaSlotKey, CtaSlot> {
+    const defaults = ctaConfigDefaults();
+
+    CTA_SLOT_KEYS.forEach((key) => {
+        defaults[key] = {
+            ...defaults[key],
+            ...(config?.[key] ?? {}),
+        };
+    });
+
+    return defaults;
+}
 
 const props = defineProps<{
     publishReadiness?: {
@@ -69,14 +143,7 @@ const props = defineProps<{
         interaction_mode: 'evaluative' | 'correctness';
         result_mode: 'score_range' | 'category' | 'mixed';
         capture_mode: 'open' | 'optional_pre_start' | 'pre_start_gate' | 'optional_pre_result' | 'pre_result_gate' | 'post_result_only' | 'hybrid';
-        cta_config?: Record<string, {
-            enabled: boolean;
-            intent: 'low' | 'medium' | 'high' | 'ultra';
-            behavior: 'optional' | 'required' | 'hidden';
-            headline: string;
-            body: string;
-            primary_label: string;
-        }>;
+        cta_config?: Record<string, CtaSlot> | null;
         allow_back: boolean;
         show_correctness_feedback: boolean;
         allow_second_chance: boolean;
@@ -113,40 +180,7 @@ const form = useForm({
     interaction_mode: props.item?.interaction_mode ?? 'evaluative',
     result_mode: props.item?.result_mode ?? 'score_range',
     capture_mode: props.item?.capture_mode ?? 'optional_pre_result',
-    cta_config: props.item?.cta_config ?? {
-        pre_start: {
-            enabled: true,
-            intent: 'low',
-            behavior: 'optional',
-            headline: 'Get the full breakdown after your assessment.',
-            body: 'Your score is only the surface. Reserve the expanded breakdown and next-step plan.',
-            primary_label: 'Save My Breakdown',
-        },
-        mid_assessment: {
-            enabled: true,
-            intent: 'medium',
-            behavior: 'optional',
-            headline: 'You are halfway through.',
-            body: 'Keep going. This slot can later connect to a progress-based offer or lead magnet.',
-            primary_label: 'Save My Progress',
-        },
-        pre_result: {
-            enabled: true,
-            intent: 'high',
-            behavior: 'optional',
-            headline: 'Unlock the meaning behind your result.',
-            body: 'Turn your answers into a useful breakdown with next-step direction.',
-            primary_label: 'Unlock My Result',
-        },
-        post_result: {
-            enabled: true,
-            intent: 'ultra',
-            behavior: 'optional',
-            headline: 'Get your next-step action plan.',
-            body: 'Use this result as the starting point for a stronger plan, consultation, or conversion path.',
-            primary_label: 'Get My Action Plan',
-        },
-    },
+    cta_config: normalizeCtaConfig(props.item?.cta_config),
     allow_back: props.item?.allow_back ?? true,
     show_correctness_feedback: props.item?.show_correctness_feedback ?? false,
     allow_second_chance: props.item?.allow_second_chance ?? false,
@@ -419,6 +453,21 @@ function addOutcome() {
     });
 }
 
+function listToLines(values: string[] | null): string {
+    return (values ?? []).join('\n');
+}
+
+function linesToList(value: string): string[] {
+    return value
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+}
+
+function updateOutcomeList(outcome: QOOutcome, field: 'breakdown_points' | 'next_steps', event: Event) {
+    outcome[field] = linesToList((event.target as HTMLTextAreaElement).value);
+}
+
 function saveOutcome(outcome: QOOutcome) {
     if (!props.item) return;
 
@@ -561,7 +610,7 @@ function deleteOutcome(outcome: QOOutcome) {
 
             <div class="grid gap-4 lg:grid-cols-2">
                 <div
-                    v-for="(slot, key) in form.cta_config"
+                    v-for="key in CTA_SLOT_KEYS"
                     :key="key"
                     class="rounded-xl border border-slate-200 bg-slate-50 p-4"
                 >
@@ -576,7 +625,7 @@ function deleteOutcome(outcome: QOOutcome) {
                         </div>
 
                         <label class="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                            <input v-model="slot.enabled" type="checkbox" class="rounded border-slate-300" />
+                            <input v-model="form.cta_config[key].enabled" type="checkbox" class="rounded border-slate-300" />
                             Enabled
                         </label>
                     </div>
@@ -584,7 +633,7 @@ function deleteOutcome(outcome: QOOutcome) {
                     <div class="grid gap-3 md:grid-cols-2">
                         <label class="space-y-1">
                             <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Intent</span>
-                            <select v-model="slot.intent" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                            <select v-model="form.cta_config[key].intent" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
                                 <option value="low">Low intent</option>
                                 <option value="medium">Medium intent</option>
                                 <option value="high">High intent</option>
@@ -594,7 +643,7 @@ function deleteOutcome(outcome: QOOutcome) {
 
                         <label class="space-y-1">
                             <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Behavior</span>
-                            <select v-model="slot.behavior" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                            <select v-model="form.cta_config[key].behavior" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
                                 <option value="optional">Optional</option>
                                 <option value="required">Required / gated</option>
                                 <option value="hidden">Hidden</option>
@@ -603,17 +652,17 @@ function deleteOutcome(outcome: QOOutcome) {
 
                         <label class="space-y-1 md:col-span-2">
                             <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Headline</span>
-                            <input v-model="slot.headline" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                            <input v-model="form.cta_config[key].headline" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
                         </label>
 
                         <label class="space-y-1 md:col-span-2">
                             <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Body</span>
-                            <textarea v-model="slot.body" rows="2" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                            <textarea v-model="form.cta_config[key].body" rows="2" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
                         </label>
 
                         <label class="space-y-1 md:col-span-2">
                             <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Primary Button</span>
-                            <input v-model="slot.primary_label" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                            <input v-model="form.cta_config[key].primary_label" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
                         </label>
                     </div>
                 </div>
@@ -841,7 +890,23 @@ function deleteOutcome(outcome: QOOutcome) {
                     <input v-model="outcome.min_score" type="number" placeholder="Min score" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
                     <input v-model="outcome.max_score" type="number" placeholder="Max score" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
                     <input v-model="outcome.cta_label" placeholder="CTA label" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                    <input v-model="outcome.result_headline" placeholder="Result headline" class="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-3" />
                     <textarea v-model="outcome.summary" placeholder="Summary" rows="2" class="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-3" />
+                    <textarea v-model="outcome.interpretation" placeholder="Interpretation" rows="3" class="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-3" />
+                    <textarea
+                        :value="listToLines(outcome.breakdown_points)"
+                        placeholder="Breakdown points, one per line"
+                        rows="4"
+                        class="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-3"
+                        @input="updateOutcomeList(outcome, 'breakdown_points', $event)"
+                    />
+                    <textarea
+                        :value="listToLines(outcome.next_steps)"
+                        placeholder="Next steps, one per line"
+                        rows="4"
+                        class="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-3"
+                        @input="updateOutcomeList(outcome, 'next_steps', $event)"
+                    />
                     <input v-model="outcome.cta_url" placeholder="CTA URL" class="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2" />
 
                     <div class="flex gap-2">

@@ -1,3 +1,13 @@
+import type { Component } from 'vue';
+import VisualVolumeBar from '@/components/admin/analytics/visuals/VisualVolumeBar.vue';
+import VisualBigNumberCard from '@/components/admin/analytics/visuals/VisualBigNumberCard.vue';
+import VisualHalfRingScore from '@/components/admin/analytics/visuals/VisualHalfRingScore.vue';
+import VisualHalfRingScoreV2 from '@/components/admin/analytics/visuals/VisualHalfRingScoreV2.vue';
+
+/* =========================
+   TYPES
+========================= */
+
 export type AnalyticsVisualType =
     | 'number_card'
     | 'trend_line'
@@ -13,8 +23,11 @@ export type AnalyticsVisualType =
     | 'flow_diagram';
 
 export type ApprovedAnalyticsVisualKey =
+    | 'big-number-card'
+    | 'volume-bar'
     | 'premium-donut'
     | 'half-ring-score'
+    | 'half-ring-score-v2'
     | 'funnel-flow'
     | 'range-variance'
     | 'premium-vertical-bar'
@@ -27,19 +40,6 @@ export type MetricCardVariant =
     | 'standard'
     | 'wide'
     | 'deep';
-
-export type MetricPurpose =
-    | 'amount'
-    | 'comparison'
-    | 'trend'
-    | 'drop_off'
-    | 'part_to_whole'
-    | 'distribution'
-    | 'source_path'
-    | 'timing'
-    | 'proof';
-
-export type VisualizationStatus = 'active' | 'limited' | 'future';
 
 export type MetricKind =
     | 'count'
@@ -59,28 +59,12 @@ export type MetricLike = {
     value?: string | number | null;
     helper?: string | null;
     description?: string | null;
-};
-
-export type VisualizationDefinition = {
-    type: AnalyticsVisualType;
-    label: string;
-    purpose: MetricPurpose[];
-    bestFor: string[];
-    avoidFor: string[];
-    defaultCardVariant: MetricCardVariant;
-    status: VisualizationStatus;
+    approvedVisualKey?: ApprovedAnalyticsVisualKey | null;
 };
 
 export type MetricVisualConfig = {
     primaryVisual: AnalyticsVisualType;
     secondaryVisuals: AnalyticsVisualType[];
-    cardVariant: MetricCardVariant;
-};
-
-export type ApprovedVisualDefinition = {
-    key: ApprovedAnalyticsVisualKey;
-    cardNumber: '01' | '05' | '11' | '12' | '14' | '16' | '20' | '23';
-    label: string;
     cardVariant: MetricCardVariant;
 };
 
@@ -91,67 +75,203 @@ export type MetricVisualContext = {
     subClusterLabel?: string | null;
     metricGroupKey?: string | null;
     metricGroupLabel?: string | null;
+    groupKey?: string | null;
     metricKey?: string | null;
     metricLabel?: string | null;
 };
 
-export type ApprovedVisualMapping = MetricVisualContext & {
+type ApprovedVisualStatus = 'approved' | 'testing' | 'hidden';
+
+type ApprovedVisualClassification = 'real' | 'weak' | 'fake';
+
+type ApprovedVisualBaseDefinition = {
+    key: ApprovedAnalyticsVisualKey;
+    cardNumber: string;
+    label: string;
+    component?: Component;
+    category: string;
+    complexity: 'simple' | 'medium' | 'advanced';
+    cardVariant: MetricCardVariant;
+};
+
+export type ApprovedVisualDefinition = ApprovedVisualBaseDefinition & {
+    classification: ApprovedVisualClassification;
+    status: ApprovedVisualStatus;
+    reason: string;
+};
+
+type ApprovedVisualMapping = MetricVisualContext & {
     visual: ApprovedAnalyticsVisualKey;
 };
 
-export const approvedVisualRegistry: Record<
+/* =========================
+   BASE REGISTRY
+========================= */
+
+const approvedVisualRegistryBase: Record<
     ApprovedAnalyticsVisualKey,
-    ApprovedVisualDefinition
+    ApprovedVisualBaseDefinition
 > = {
-    'premium-donut': {
-        key: 'premium-donut',
-        cardNumber: '01',
-        label: 'Premium Donut',
-        cardVariant: 'standard',
+    'big-number-card': {
+        key: 'big-number-card',
+        cardNumber: '00',
+        label: 'Big Number Card',
+        category: 'number',
+        complexity: 'simple',
+        cardVariant: 'compact',
+        component: VisualBigNumberCard,
     },
+
+    'volume-bar': {
+        key: 'volume-bar',
+        cardNumber: 'V1',
+        label: 'Volume Bar',
+        category: 'bar',
+        complexity: 'simple',
+        cardVariant: 'standard',
+        component: VisualVolumeBar,
+    },
+
     'half-ring-score': {
         key: 'half-ring-score',
         cardNumber: '11',
         label: 'Half-Ring Score',
+        category: 'gauge',
+        complexity: 'medium',
+        cardVariant: 'standard',
+        component: VisualHalfRingScore,
+    },
+
+    'premium-donut': {
+        key: 'premium-donut',
+        cardNumber: '01',
+        label: 'Premium Donut',
+        category: 'donut',
+        complexity: 'medium',
         cardVariant: 'standard',
     },
+
     'funnel-flow': {
         key: 'funnel-flow',
         cardNumber: '05',
         label: 'Funnel Flow',
+        category: 'flow',
+        complexity: 'advanced',
         cardVariant: 'deep',
     },
+
     'range-variance': {
         key: 'range-variance',
         cardNumber: '16',
         label: 'Range Variance',
+        category: 'range',
+        complexity: 'medium',
         cardVariant: 'standard',
     },
+
+    'half-ring-score-v2': {
+        key: 'half-ring-score-v2',
+        cardNumber: 'T2',
+        label: 'Half Ring Score V2',
+        category: 'gauge',
+        complexity: 'medium',
+        cardVariant: 'standard',
+        component: VisualHalfRingScoreV2,
+    },
+
     'premium-vertical-bar': {
         key: 'premium-vertical-bar',
         cardNumber: '12',
         label: 'Premium Vertical Bar',
+        category: 'bar',
+        complexity: 'simple',
         cardVariant: 'standard',
     },
+
     'mini-report-card': {
         key: 'mini-report-card',
         cardNumber: '23',
         label: 'Mini Report Card',
+        category: 'card',
+        complexity: 'simple',
         cardVariant: 'compact',
     },
+
     'stacked-performance': {
         key: 'stacked-performance',
         cardNumber: '14',
         label: 'Stacked Performance',
+        category: 'bar',
+        complexity: 'advanced',
         cardVariant: 'wide',
     },
+
     'source-ranking-table': {
         key: 'source-ranking-table',
         cardNumber: '20',
         label: 'Source Ranking Table',
+        category: 'table',
+        complexity: 'advanced',
         cardVariant: 'wide',
     },
 };
+
+/* =========================
+   GOVERNANCE
+========================= */
+
+const visualGovernance: Record<
+    ApprovedAnalyticsVisualKey,
+    {
+        classification: ApprovedVisualClassification;
+        status: ApprovedVisualStatus;
+        reason: string;
+    }
+> = {
+    'big-number-card': {
+        classification: 'real',
+        status: 'approved',
+        reason: 'Displays raw value.',
+    },
+    'volume-bar': {
+        classification: 'real',
+        status: 'approved',
+        reason: 'Volume scaling.',
+    },
+    'half-ring-score': {
+        classification: 'real',
+        status: 'approved',
+        reason: 'Position on weak→strong spectrum.',
+    },
+    'half-ring-score-v2': {
+        classification: 'real',
+        status: 'testing',
+        reason: 'Testing a stronger half-ring score treatment without replacing the approved original.',
+    },
+    'premium-donut': { classification: 'real', status: 'approved', reason: '' },
+    'funnel-flow': { classification: 'real', status: 'approved', reason: '' },
+    'range-variance': { classification: 'real', status: 'approved', reason: '' },
+    'premium-vertical-bar': { classification: 'real', status: 'approved', reason: '' },
+    'mini-report-card': { classification: 'real', status: 'approved', reason: '' },
+    'stacked-performance': { classification: 'real', status: 'approved', reason: '' },
+    'source-ranking-table': { classification: 'real', status: 'approved', reason: '' },
+};
+
+const withGovernance = (
+    visual: (typeof approvedVisualRegistryBase)[ApprovedAnalyticsVisualKey],
+): ApprovedVisualDefinition => ({
+    ...visual,
+    classification: visualGovernance[visual.key].classification,
+    status: visualGovernance[visual.key].status,
+    reason: visualGovernance[visual.key].reason,
+});
+
+export const approvedVisualRegistry: Record<string, ApprovedVisualDefinition> = Object.fromEntries(
+    Object.values(approvedVisualRegistryBase).map((visual) => [
+        visual.key,
+        withGovernance(visual),
+    ]),
+);
 
 export const approvedVisualMappings: ApprovedVisualMapping[] = [
     { clusterKey: 'traffic', subClusterKey: 'ctas', metricGroupKey: 'cta_performance', metricKey: 'ctr', visual: 'half-ring-score' },
@@ -183,132 +303,6 @@ export const approvedVisualMappings: ApprovedVisualMapping[] = [
     { clusterKey: 'behavior', subClusterKey: 'scenarios', metricGroupKey: 'scenario_performance', metricKey: 'duration', visual: 'range-variance' },
     { clusterKey: 'source', subClusterKey: 'attribution', metricGroupKey: 'attribution_performance', metricKey: 'submissions', visual: 'source-ranking-table' },
 ];
-
-export const excludedVisualizationTypes = [
-    'scatter_plot',
-    'bubble_chart',
-    'radar_chart',
-    'gantt_chart',
-    'treemap',
-    'box_plot',
-    'waterfall_chart',
-    'geospatial_map',
-    'histogram',
-] as const;
-
-export const visualizationRegistry: Record<
-    AnalyticsVisualType,
-    VisualizationDefinition
-> = {
-    number_card: {
-        type: 'number_card',
-        label: 'Number Card',
-        purpose: ['amount'],
-        bestFor: ['clicks', 'views', 'submissions', 'conversions', 'totals'],
-        avoidFor: ['flows', 'drop-off chains', 'part-to-whole reads'],
-        defaultCardVariant: 'compact',
-        status: 'active',
-    },
-    trend_line: {
-        type: 'trend_line',
-        label: 'Trend Line',
-        purpose: ['trend', 'comparison'],
-        bestFor: ['over-time movement', 'trend direction', 'performance shifts'],
-        avoidFor: ['single totals', 'one-step funnel reads'],
-        defaultCardVariant: 'wide',
-        status: 'active',
-    },
-    sparkline: {
-        type: 'sparkline',
-        label: 'Sparkline',
-        purpose: ['trend'],
-        bestFor: ['compact over-time context', 'headline trend support'],
-        avoidFor: ['multi-series comparisons', 'complex breakdowns'],
-        defaultCardVariant: 'compact',
-        status: 'active',
-    },
-    horizontal_bar: {
-        type: 'horizontal_bar',
-        label: 'Horizontal Bar',
-        purpose: ['comparison', 'proof'],
-        bestFor: ['ranked comparisons', 'ordered category performance'],
-        avoidFor: ['timing reads', 'path analysis'],
-        defaultCardVariant: 'wide',
-        status: 'active',
-    },
-    comparison_bars: {
-        type: 'comparison_bars',
-        label: 'Comparison Bars',
-        purpose: ['comparison', 'distribution'],
-        bestFor: ['rate comparisons', 'coverage comparisons', 'side-by-side deltas'],
-        avoidFor: ['funnel loss', 'journey flows'],
-        defaultCardVariant: 'wide',
-        status: 'active',
-    },
-    funnel_chart: {
-        type: 'funnel_chart',
-        label: 'Funnel Chart',
-        purpose: ['drop_off', 'comparison'],
-        bestFor: ['step completion', 'drop-off concentration', 'journey stage loss'],
-        avoidFor: ['simple totals', 'part-to-whole share'],
-        defaultCardVariant: 'deep',
-        status: 'active',
-    },
-    progress_rate_bar: {
-        type: 'progress_rate_bar',
-        label: 'Progress Rate Bar',
-        purpose: ['comparison', 'distribution'],
-        bestFor: ['rates', 'completion reads', 'coverage progress'],
-        avoidFor: ['multi-step funnels', 'path transitions'],
-        defaultCardVariant: 'standard',
-        status: 'active',
-    },
-    donut_chart: {
-        type: 'donut_chart',
-        label: 'Donut Chart',
-        purpose: ['part_to_whole', 'distribution'],
-        bestFor: ['attribution share', 'conversion type breakdown', 'part-of-whole reads'],
-        avoidFor: ['default comparisons', 'trend analysis', 'funnel analysis'],
-        defaultCardVariant: 'standard',
-        status: 'limited',
-    },
-    timeline_duration: {
-        type: 'timeline_duration',
-        label: 'Timeline Duration',
-        purpose: ['timing', 'comparison'],
-        bestFor: ['time to conversion', 'elapsed duration', 'session timing'],
-        avoidFor: ['share breakdowns', 'part-to-whole reads'],
-        defaultCardVariant: 'standard',
-        status: 'active',
-    },
-    ranked_list: {
-        type: 'ranked_list',
-        label: 'Ranked List',
-        purpose: ['comparison', 'proof'],
-        bestFor: ['top performers', 'priority rankings', 'operator review lists'],
-        avoidFor: ['timelines', 'flow diagrams'],
-        defaultCardVariant: 'wide',
-        status: 'active',
-    },
-    table: {
-        type: 'table',
-        label: 'Table',
-        purpose: ['proof', 'comparison'],
-        bestFor: ['auditable detail', 'evidence-heavy comparisons', 'raw metric proof'],
-        avoidFor: ['headline KPI cards', 'simple single-value reads'],
-        defaultCardVariant: 'wide',
-        status: 'active',
-    },
-    flow_diagram: {
-        type: 'flow_diagram',
-        label: 'Flow Diagram',
-        purpose: ['source_path'],
-        bestFor: ['user journeys', 'path diagrams', 'scenario transitions'],
-        avoidFor: ['default metric cards', 'simple comparisons', 'totals'],
-        defaultCardVariant: 'deep',
-        status: 'future',
-    },
-};
 
 export const metricKindVisualMap: Record<MetricKind, MetricVisualConfig> = {
     count: {
@@ -363,13 +357,60 @@ export const metricKindVisualMap: Record<MetricKind, MetricVisualConfig> = {
     },
 };
 
-export function getVisualizationDefinition(type: AnalyticsVisualType) {
-    return visualizationRegistry[type];
+/* =========================
+   HELPERS
+========================= */
+
+export function getApprovedVisualDefinition(
+    key: ApprovedAnalyticsVisualKey | null | undefined,
+    _mode?: 'production' | 'testing',
+) {
+    if (!key) return null;
+
+    return approvedVisualRegistry[key] ?? null;
 }
 
-export function getApprovedVisualDefinition(type: ApprovedAnalyticsVisualKey) {
-    return approvedVisualRegistry[type];
+export function resolveApprovedVisual(
+    keyOrContext: ApprovedAnalyticsVisualKey | MetricVisualContext | null | undefined,
+) {
+    if (!keyOrContext) return null;
+
+    if (typeof keyOrContext === 'string') {
+        const visual = approvedVisualRegistry[keyOrContext];
+
+        if (!visual) return null;
+
+        return visual.status === 'approved' ? visual : null;
+    }
+
+    const normalizedContext = {
+        ...keyOrContext,
+        clusterKey: normalizeToken(keyOrContext.clusterKey),
+        subClusterKey: normalizeToken(keyOrContext.subClusterKey),
+        metricGroupKey: normalizeToken(keyOrContext.metricGroupKey ?? keyOrContext.groupKey),
+        metricKey: normalizeToken(keyOrContext.metricKey),
+    };
+    const exactMatch = approvedVisualMappings.find((mapping) =>
+        contextMatches(mapping, normalizedContext),
+    );
+
+    if (exactMatch) {
+        return approvedVisualRegistry[exactMatch.visual] ?? null;
+    }
+
+    const contextualMatch = approvedVisualMappings.find(
+        (mapping) =>
+            mapping.metricKey === normalizedContext.metricKey &&
+            mapping.clusterKey === normalizedContext.clusterKey &&
+            mapping.subClusterKey === normalizedContext.subClusterKey,
+    );
+
+    return contextualMatch ? approvedVisualRegistry[contextualMatch.visual] ?? null : null;
 }
+
+export const availableTestingVisuals = Object.values(approvedVisualRegistry).filter(
+    (v) => v.status !== 'hidden',
+);
 
 const normalizeToken = (value?: string | null) =>
     (value ?? '')
@@ -408,34 +449,6 @@ const contextMatches = (
 
     return true;
 };
-
-export function resolveApprovedVisual(
-    context: MetricVisualContext,
-): ApprovedVisualDefinition | null {
-    const normalizedContext = {
-        ...context,
-        clusterKey: normalizeToken(context.clusterKey),
-        subClusterKey: normalizeToken(context.subClusterKey),
-        metricGroupKey: normalizeToken(context.metricGroupKey),
-        metricKey: normalizeToken(context.metricKey),
-    };
-    const exactMatch = approvedVisualMappings.find((mapping) =>
-        contextMatches(mapping, normalizedContext),
-    );
-
-    if (exactMatch) {
-        return approvedVisualRegistry[exactMatch.visual];
-    }
-
-    const contextualMatch = approvedVisualMappings.find(
-        (mapping) =>
-            mapping.metricKey === normalizedContext.metricKey &&
-            mapping.clusterKey === normalizedContext.clusterKey &&
-            mapping.subClusterKey === normalizedContext.subClusterKey,
-    );
-
-    return contextualMatch ? approvedVisualRegistry[contextualMatch.visual] : null;
-}
 
 export function inferMetricKind(metric: MetricLike): MetricKind {
     const fingerprint = `${metric.key ?? ''} ${metric.label}`.toLowerCase();
@@ -514,6 +527,19 @@ export function inferMetricKind(metric: MetricLike): MetricKind {
     return 'count';
 }
 
-export function getVisualConfigForMetric(metric: MetricLike): MetricVisualConfig {
-    return metricKindVisualMap[inferMetricKind(metric)];
+export function getVisualConfigForMetric(metric: any) {
+    if (!metric) return null;
+
+    // If metric already has an approved visual, use it
+    if (metric.approvedVisualKey) {
+        return approvedVisualRegistry[metric.approvedVisualKey] ?? null;
+    }
+
+    // Fallback: resolve based on context
+    return resolveApprovedVisual({
+        metricKey: metric.key ?? null,
+        groupKey: metric.groupKey ?? null,
+        subClusterKey: metric.subClusterKey ?? null,
+        clusterKey: metric.clusterKey ?? null,
+    });
 }

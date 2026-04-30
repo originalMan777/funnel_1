@@ -10,8 +10,19 @@ type VisualMetric = {
     label: string;
     value: string | number;
     displayValue?: string | number | null;
+    definition?: string | null;
+    description?: string | null;
     helper?: string | null;
+    dataSource?: string | null;
+    status?: 'good' | 'warning' | 'poor' | 'neutral' | string | null;
+    statusLabel?: string | null;
+    trendLabel?: string | null;
+    delta?: string | number | null;
     insight?: string | null;
+    recommendation?: string | null;
+    formula?: string | null;
+    whyItMatters?: string | null;
+    affects?: string[];
 };
 
 type VisualMetricGroup = {
@@ -48,6 +59,14 @@ const props = withDefaults(
         metricGroup: null,
     },
 );
+
+const emit = defineEmits<{
+    selectMetric: [payload: {
+        metric: VisualMetric;
+        subCluster: VisualSubCluster;
+        metricGroup: VisualMetricGroup;
+    }];
+}>();
 
 const sourceMetricGroup = computed(
     () => props.metricGroup ?? props.subCluster.metricGroups?.[0] ?? null,
@@ -153,6 +172,15 @@ const approvedVisualForMetric = (metric: VisualMetric) =>
                     metricKey: metric.key,
                     metricLabel: metric.label,
                 }"
+                clickable
+                @select="
+                    sourceMetricGroup &&
+                        emit('selectMetric', {
+                            metric,
+                            subCluster,
+                            metricGroup: sourceMetricGroup,
+                        })
+                "
             />
         </div>
 

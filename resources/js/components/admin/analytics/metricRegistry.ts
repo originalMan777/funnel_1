@@ -239,6 +239,8 @@ const categoryLabels: Record<MetricCategoryKey, string> = {
     source: 'Source',
 };
 
+const isMetricCategoryKey = (key: string): key is MetricCategoryKey => key in categoryLabels;
+
 const percent = (numerator: number, denominator: number) => {
     if (denominator <= 0) {
         return null;
@@ -633,11 +635,11 @@ export function buildOverviewMetricGroups(
     return [
         { key: 'all', label: 'All Metrics' },
         ...Object.entries(categoryLabels)
-            .filter(([key]) => presentCategories.has(key as MetricCategoryKey))
-            .map(([key, label]) => ({
-                key: key as MetricCategoryKey,
-                label,
-            })),
+            .flatMap(([key, label]) =>
+                isMetricCategoryKey(key) && presentCategories.has(key)
+                    ? [{ key, label }]
+                    : [],
+            ),
     ];
 }
 

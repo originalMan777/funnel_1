@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+import LeadSlotRenderer from '@/components/public/lead/LeadSlotRenderer.vue';
 
 type QOOption = {
     id: number;
@@ -28,6 +29,26 @@ type QOQuestion = {
     options?: QOOption[];
 };
 
+type CtaSlot = {
+    enabled: boolean;
+    intent: 'low' | 'medium' | 'high' | 'ultra';
+    behavior: 'optional' | 'required' | 'hidden';
+    headline: string;
+    body: string;
+    primary_label: string;
+};
+
+type QOOutcome = {
+    id?: number;
+    title?: string | null;
+    result_headline?: string | null;
+    summary?: string | null;
+    body?: string | null;
+    interpretation?: string | null;
+    breakdown_points?: string[] | null;
+    next_steps?: string[] | null;
+};
+
 const props = defineProps<{
     item: {
         id: number;
@@ -45,14 +66,7 @@ const props = defineProps<{
         reveal_correct_answer_after_fail: boolean;
         show_explanations: boolean;
         capture_mode: 'open' | 'optional_pre_start' | 'pre_start_gate' | 'optional_pre_result' | 'pre_result_gate' | 'post_result_only' | 'hybrid';
-        cta_config?: Record<string, {
-            enabled: boolean;
-            intent: 'low' | 'medium' | 'high' | 'ultra';
-            behavior: 'optional' | 'required' | 'hidden';
-            headline: string;
-            body: string;
-            primary_label: string;
-        }>;
+        cta_config?: Record<string, CtaSlot> | null;
         questions: QOQuestion[];
     };
     isPreview?: boolean;
@@ -67,15 +81,32 @@ const textAnswer = ref('');
 const numberAnswer = ref<number | null>(null);
 const statusMessage = ref<string | null>(null);
 const isProcessing = ref(false);
-const finalOutcome = ref<any>(null);
+const finalOutcome = ref<QOOutcome | null>(null);
 const finalScore = ref<number | null>(null);
 const lastFeedback = ref<any>(null);
 const answerChecked = ref(false);
 const captureCompleted = ref(false);
+const captureName = ref('');
+const captureEmail = ref('');
+const capturePhone = ref('');
+const captureErrors = ref<Record<string, string[]>>({});
+const captureStatus = ref<string | null>(null);
 const savedQuestionIds = ref<number[]>([]);
 const finalPercentage = computed(() => {
     if (finalScore.value === null || !totalQuestions.value) return null;
     return Math.round((finalScore.value / totalQuestions.value) * 100);
+});
+const resultHeadline = computed(() => {
+    return finalOutcome.value?.result_headline || finalOutcome.value?.title || 'Your outcome is ready';
+});
+const resultSummary = computed(() => {
+    return finalOutcome.value?.summary || finalOutcome.value?.body || 'Your results have been calculated.';
+});
+const resultBreakdownPoints = computed(() => {
+    return (finalOutcome.value?.breakdown_points ?? []).filter(Boolean);
+});
+const resultNextSteps = computed(() => {
+    return (finalOutcome.value?.next_steps ?? []).filter(Boolean);
 });
 
 const questions = computed(() => props.item.questions ?? []);
@@ -84,35 +115,69 @@ const totalQuestions = computed(() => questions.value.length);
 const currentQuestionNumber = computed(() => currentIndex.value + 1);
 const isLastQuestion = computed(() => currentIndex.value >= totalQuestions.value - 1);
 const canGoBack = computed(() => props.item.allow_back && currentIndex.value > 0);
+const hasCtaConfig = computed(() => {
+    return !!props.item.cta_config && Object.keys(props.item.cta_config).length > 0;
+});
 
 const progressPercent = computed(() => {
     if (!totalQuestions.value) return 0;
     return Math.round((currentQuestionNumber.value / totalQuestions.value) * 100);
 });
 
-const showsPreStartCapture = computed(() => {
-    return ['optional_pre_start', 'pre_start_gate', 'hybrid'].includes(props.item.capture_mode);
-});
+const showsPreStartCapture = computed(() => ctaEnabled('pre_start'));
+const showsPreResultCapture = computed(() => ctaEnabled('pre_result'));
+const showsPostResultCapture = computed(() => ctaEnabled('post_result'));
+const isPreStartGated = computed(() => ctaRequired('pre_start'));
+const isPreResultGated = computed(() => ctaRequired('pre_result'));
 
-const showsPreResultCapture = computed(() => {
-    return ['optional_pre_result', 'pre_result_gate'].includes(props.item.capture_mode)
-        || (props.item.capture_mode === 'hybrid' && !captureCompleted.value);
-});
+function legacyCtaSlot(key: string): CtaSlot | null {
+    const captureMode = props.item.capture_mode;
 
-const showsPostResultCapture = computed(() => {
-    return ['post_result_only', 'open', 'optional_pre_start', 'optional_pre_result', 'hybrid'].includes(props.item.capture_mode);
-});
+    if (key === 'pre_start' && ['optional_pre_start', 'pre_start_gate', 'hybrid'].includes(captureMode)) {
+        return {
+            enabled: true,
+            intent: 'low',
+            behavior: captureMode === 'pre_start_gate' ? 'required' : 'optional',
+            headline: 'Get the full breakdown after your assessment.',
+            body: 'Your score is only the surface. This step reserves the expanded breakdown and next-step plan that will later connect to the lead system.',
+            primary_label: 'Save My Breakdown',
+        };
+    }
 
-const isPreStartGated = computed(() => props.item.capture_mode === 'pre_start_gate');
-const isPreResultGated = computed(() => props.item.capture_mode === 'pre_result_gate' || (props.item.capture_mode === 'hybrid' && !captureCompleted.value));
+    if (key === 'pre_result' && (
+        ['optional_pre_result', 'pre_result_gate'].includes(captureMode)
+        || (captureMode === 'hybrid' && !captureCompleted.value)
+    )) {
+        return {
+            enabled: true,
+            intent: 'high',
+            behavior: captureMode === 'pre_result_gate' || captureMode === 'hybrid' ? 'required' : 'optional',
+            headline: 'Unlock the meaning behind your result.',
+            body: 'Your result is ready. Turn your answers into a useful breakdown with next-step direction.',
+            primary_label: 'Unlock My Result',
+        };
+    }
 
-function markCaptureCompleted() {
-    captureCompleted.value = true;
-    statusMessage.value = 'Information saved for this walkthrough.';
+    if (key === 'post_result' && ['post_result_only', 'open', 'optional_pre_start', 'optional_pre_result', 'hybrid'].includes(captureMode)) {
+        return {
+            enabled: true,
+            intent: 'ultra',
+            behavior: 'optional',
+            headline: 'Get your next-step action plan.',
+            body: 'This is the strongest CTA slot. Later, it will connect to your lead box / booking flow based on this result.',
+            primary_label: 'Get My Action Plan',
+        };
+    }
+
+    return null;
 }
 
-function ctaSlot(key: string) {
-    return props.item.cta_config?.[key] ?? null;
+function ctaSlot(key: string): CtaSlot | null {
+    if (hasCtaConfig.value) {
+        return props.item.cta_config?.[key] ?? null;
+    }
+
+    return legacyCtaSlot(key);
 }
 
 function ctaEnabled(key: string): boolean {
@@ -121,8 +186,14 @@ function ctaEnabled(key: string): boolean {
     return !!slot && slot.enabled && slot.behavior !== 'hidden';
 }
 
-function ctaLabel(key: string, fallback: string): string {
-    return ctaSlot(key)?.primary_label || fallback;
+function ctaRequired(key: string): boolean {
+    const slot = ctaSlot(key);
+
+    return ctaEnabled(key) && slot?.behavior === 'required';
+}
+
+function ctaIntent(key: string): CtaSlot['intent'] {
+    return ctaSlot(key)?.intent ?? 'medium';
 }
 
 function ctaHeadline(key: string, fallback: string): string {
@@ -133,10 +204,22 @@ function ctaBody(key: string, fallback: string): string {
     return ctaSlot(key)?.body || fallback;
 }
 
-const shouldShowMidCta = computed(() => {
+function ctaLabel(key: string, fallback: string): string {
+    return ctaSlot(key)?.primary_label || fallback;
+}
+
+function ctaBehaviorLabel(key: string): string {
+    return ctaRequired(key) ? 'Required' : 'Optional';
+}
+
+const isMidpointQuestion = computed(() => {
     if (!totalQuestions.value) return false;
 
     return currentQuestionNumber.value === Math.ceil(totalQuestions.value / 2);
+});
+
+const shouldShowMidCta = computed(() => {
+    return ctaEnabled('mid_assessment') && isMidpointQuestion.value;
 });
 
 
@@ -207,8 +290,67 @@ async function postJson(url: string, payload: Record<string, unknown>) {
     return response.json();
 }
 
+function captureErrorMessage(): string | null {
+    const firstError = Object.values(captureErrors.value)[0]?.[0];
+
+    return firstError ?? null;
+}
+
+async function submitCapture(stage: 'pre_start' | 'mid_assessment' | 'pre_result' | 'post_result'): Promise<boolean> {
+    isProcessing.value = true;
+    captureErrors.value = {};
+    captureStatus.value = 'Saving...';
+    statusMessage.value = null;
+
+    try {
+        const response = await fetch(route('qo.runtime.capture', props.item.slug), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken(),
+            },
+            body: JSON.stringify({
+                submission_id: submissionId.value,
+                stage,
+                name: captureName.value,
+                email: captureEmail.value,
+                phone: capturePhone.value,
+                is_preview: props.isPreview === true,
+            }),
+        });
+
+        const result = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            captureErrors.value = result.errors ?? {};
+            captureStatus.value = captureErrorMessage() ?? result.message ?? 'Could not save this information.';
+            return false;
+        }
+
+        captureCompleted.value = true;
+        captureStatus.value = result.message ?? 'Information saved.';
+        statusMessage.value = captureStatus.value;
+        return true;
+    } catch (error) {
+        captureStatus.value = 'Could not save this information.';
+        console.error(error);
+        return false;
+    } finally {
+        isProcessing.value = false;
+    }
+}
+
+async function submitPreResultCapture() {
+    const saved = await submitCapture('pre_result');
+
+    if (saved) {
+        await complete();
+    }
+}
+
 async function start() {
-    if (isPreStartGated.value && !captureCompleted.value) {
+    if (ctaRequired('pre_start') && !captureCompleted.value) {
         statusMessage.value = 'Complete the quick form below to start.';
         return;
     }
@@ -388,6 +530,8 @@ function back() {
     currentIndex.value -= 1;
     resetAnswerState();
 }
+
+
 </script>
 
 <template>
@@ -429,9 +573,13 @@ function back() {
                 <p v-if="statusMessage" class="mt-4 text-sm text-slate-500">{{ statusMessage }}</p>
             </section>
 
-            <section v-if="state === 'intro' && showsPreStartCapture && ctaEnabled('pre_start')" class="mx-auto mt-12 max-w-3xl rounded-2xl border border-white/10 bg-white/5 p-6 text-white">
+
+
+            <LeadSlotRenderer v-if="state === 'intro'" slot-key="qo_pre_start" class="mx-auto mt-12 max-w-3xl" />
+
+            <section v-if="state === 'intro' && showsPreStartCapture" class="mx-auto mt-12 max-w-3xl rounded-2xl border border-white/10 bg-white/5 p-6 text-white">
                 <p class="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-300">
-                    Optional
+                    {{ ctaBehaviorLabel('pre_start') }} · {{ ctaIntent('pre_start') }} intent
                 </p>
                 <h3 class="mt-2 text-xl font-bold">
                     {{ ctaHeadline('pre_start', 'Get the full breakdown after your assessment.') }}
@@ -440,16 +588,26 @@ function back() {
                     {{ ctaBody('pre_start', 'Your score is only the surface. This step reserves the expanded breakdown and next-step plan that will later connect to the lead system.') }}
                 </p>
 
-                <div class="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
-                    <input class="rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-400" placeholder="Name" />
-                    <input class="rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-400" placeholder="Email" />
-                    <button type="button" class="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-950" @click="markCaptureCompleted">
+                <div class="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
+                    <input v-model="captureName" class="rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-400" placeholder="Name" />
+                    <input v-model="captureEmail" class="rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-400" placeholder="Email" />
+                    <input v-model="capturePhone" class="rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-400" placeholder="Phone" />
+                    <button
+                        type="button"
+                        class="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-950 disabled:opacity-50"
+                        :disabled="isProcessing"
+                        @click="submitCapture('pre_start')"
+                    >
                         {{ ctaLabel('pre_start', 'Save My Breakdown') }}
                     </button>
                 </div>
 
+                <p v-if="captureStatus" class="mt-3 text-xs" :class="captureErrorMessage() ? 'text-red-300' : 'text-slate-400'">
+                    {{ captureStatus }}
+                </p>
+
                 <p class="mt-3 text-xs text-slate-400">
-                    <span v-if="isPreStartGated">Required to start this assessment.</span>
+                    <span v-if="isPreStartGated">{{ ctaBehaviorLabel('pre_start') }} to start this assessment.</span>
                     <span v-else>Optional — you can start without filling this out.</span>
                 </p>
             </section>
@@ -579,9 +737,11 @@ function back() {
                     </div>
                 </div>
 
-                <section v-if="shouldShowMidCta && ctaEnabled('mid_assessment')" class="mx-auto mt-10 max-w-5xl rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-5 text-slate-200">
+                <LeadSlotRenderer v-if="isMidpointQuestion" slot-key="qo_mid_assessment" class="mx-auto mt-10 max-w-5xl" />
+
+                <section v-if="shouldShowMidCta" class="mx-auto mt-10 max-w-5xl rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-5 text-slate-200">
                     <p class="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-300">
-                        Mid Assessment
+                        Mid Assessment · {{ ctaBehaviorLabel('mid_assessment') }} · {{ ctaIntent('mid_assessment') }} intent
                     </p>
                     <div class="mt-2 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div>
@@ -590,92 +750,139 @@ function back() {
                                 {{ ctaBody('mid_assessment', 'This slot can later show a soft lead magnet or progress-based offer without interrupting the test.') }}
                             </p>
                         </div>
-                        <button type="button" class="w-fit rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10">
+                        <button
+                            type="button"
+                            class="w-fit rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-50"
+                            :disabled="isProcessing"
+                            @click="submitCapture('mid_assessment')"
+                        >
                             {{ ctaLabel('mid_assessment', 'Save My Progress') }}
                         </button>
                     </div>
+                    <p v-if="captureStatus" class="mt-3 text-xs" :class="captureErrorMessage() ? 'text-red-300' : 'text-slate-400'">
+                        {{ captureStatus }}
+                    </p>
                 </section>
 
-                <footer class="mt-24 border-t border-white/10 px-2 pt-8 text-slate-300">
-                    <div class="mx-auto flex max-w-5xl flex-col gap-4 rounded-2xl bg-white/[0.03] px-6 py-6 md:flex-row md:items-center md:justify-between">
-                        <div>
-                            <p class="text-sm font-semibold text-white">Footer Lead Box / Promo Zone</p>
-                            <p class="mt-1 max-w-2xl text-sm text-slate-400">
-                                This area can hold a lead magnet, offer, consultation CTA, or rotating promo without competing with the quiz.
-                            </p>
-                        </div>
-
-                        <button
-                            type="button"
-                            class="w-fit rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
-                        >
-                            Learn More
-                        </button>
-                    </div>
-                </footer>
+                <LeadSlotRenderer slot-key="qo_footer" class="mx-auto mt-24 max-w-5xl border-t border-white/10 px-2 pt-8 text-slate-300" />
             </section>
 
-            <section v-if="state === 'pre_result' && showsPreResultCapture && ctaEnabled('pre_result')" class="mx-auto max-w-3xl rounded-3xl border border-white/10 bg-white p-8 text-slate-950 shadow-2xl">
-                <p class="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                    Before your result
-                </p>
+            <section v-if="state === 'pre_result'" class="mx-auto max-w-3xl rounded-3xl border border-white/10 bg-white p-8 text-slate-950 shadow-2xl">
+                <LeadSlotRenderer slot-key="qo_pre_result" class="mb-6" />
 
-                <h2 class="mt-3 text-3xl font-bold">
-                    {{ ctaHeadline('pre_result', 'Unlock the meaning behind your result.') }}
-                </h2>
+                <template v-if="showsPreResultCapture">
+                    <p class="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                        Before your result · {{ ctaBehaviorLabel('pre_result') }} · {{ ctaIntent('pre_result') }} intent
+                    </p>
 
-                <p class="mt-4 text-base leading-7 text-slate-600">
-                    {{ ctaBody('pre_result', 'Your result is ready. Turn your answers into a useful breakdown with next-step direction.') }}
-                </p>
+                    <h2 class="mt-3 text-3xl font-bold">
+                        {{ ctaHeadline('pre_result', 'Unlock the meaning behind your result.') }}
+                    </h2>
 
-                <div class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        <input class="rounded-xl border border-slate-300 px-4 py-3 text-sm" placeholder="Name" />
-                        <input class="rounded-xl border border-slate-300 px-4 py-3 text-sm" placeholder="Email" />
+                    <p class="mt-4 text-base leading-7 text-slate-600">
+                        {{ ctaBody('pre_result', 'Your result is ready. Turn your answers into a useful breakdown with next-step direction.') }}
+                    </p>
+
+                    <div class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                        <div class="grid gap-3 sm:grid-cols-3">
+                            <input v-model="captureName" class="rounded-xl border border-slate-300 px-4 py-3 text-sm" placeholder="Name" />
+                            <input v-model="captureEmail" class="rounded-xl border border-slate-300 px-4 py-3 text-sm" placeholder="Email" />
+                            <input v-model="capturePhone" class="rounded-xl border border-slate-300 px-4 py-3 text-sm" placeholder="Phone" />
+                        </div>
+                        <p v-if="captureStatus" class="mt-3 text-xs" :class="captureErrorMessage() ? 'text-red-600' : 'text-slate-500'">
+                            {{ captureStatus }}
+                        </p>
+                        <p class="mt-3 text-xs text-slate-500">
+                            <span v-if="isPreResultGated">{{ ctaBehaviorLabel('pre_result') }} to unlock the result.</span>
+                            <span v-else>Optional — you can skip this and view your result now.</span>
+                        </p>
                     </div>
-                    <p class="mt-3 text-xs text-slate-500">
-                        <span v-if="isPreResultGated">Required to unlock the result.</span>
-                        <span v-else>Optional — you can skip this and view your result now.</span>
+
+                    <div class="mt-6 flex flex-col gap-3 sm:flex-row">
+                        <button
+                            type="button"
+                            class="rounded-xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                            :disabled="isProcessing"
+                            @click="submitPreResultCapture"
+                        >
+                            {{ ctaLabel('pre_result', 'Unlock My Result') }}
+                        </button>
+
+                        <button
+                            v-if="!isPreResultGated"
+                            type="button"
+                            class="rounded-xl border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                            @click="complete"
+                        >
+                            Skip and Show Result
+                        </button>
+                    </div>
+                </template>
+
+                <button
+                    v-else
+                    type="button"
+                    class="mt-6 rounded-xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                    :disabled="isProcessing"
+                    @click="complete"
+                >
+                    See My Result
+                </button>
+            </section>
+
+            <section v-if="state === 'outcome'" class="mx-auto max-w-4xl rounded-3xl border border-white/10 bg-white p-6 text-slate-950 shadow-2xl sm:p-8">
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5 sm:p-6">
+                    <p class="text-sm font-semibold uppercase tracking-wide text-emerald-700">Result</p>
+
+                    <h2 class="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">{{ resultHeadline }}</h2>
+
+                    <p class="mt-4 max-w-3xl text-base leading-7 text-slate-600">
+                        {{ resultSummary }}
                     </p>
                 </div>
 
-                <div class="mt-6 flex flex-col gap-3 sm:flex-row">
-                    <button
-                        type="button"
-                        class="rounded-xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800"
-                        @click="markCaptureCompleted(); complete()"
-                    >
-                        {{ ctaLabel('pre_result', 'Unlock My Result') }}
-                    </button>
+                <div v-if="finalScore !== null" class="mt-5 grid gap-4 sm:grid-cols-2">
+                    <div class="rounded-2xl border border-slate-200 p-5">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Final Score</p>
+                        <p class="mt-2 text-3xl font-bold text-slate-950">{{ finalScore }} / {{ totalQuestions }}</p>
+                    </div>
 
-                    <button
-                        v-if="!isPreResultGated"
-                        type="button"
-                        class="rounded-xl border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-                        @click="complete"
-                    >
-                        Skip and Show Result
-                    </button>
-                </div>
-            </section>
-
-            <section v-if="state === 'outcome'" class="mx-auto max-w-3xl rounded-3xl border border-white/10 bg-white p-8 text-slate-950 shadow-2xl">
-                <p class="text-sm font-semibold uppercase tracking-wide text-emerald-700">Complete</p>
-
-                <h2 class="mt-3 text-3xl font-bold">{{ finalOutcome?.title || 'Your outcome is ready' }}</h2>
-
-                <p class="mt-4 text-base leading-7 text-slate-600">
-                    {{ finalOutcome?.summary || 'Your results have been calculated.' }}
-                </p>
-
-                <div v-if="finalScore !== null" class="mt-4 space-y-2 rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
-                    <p>Final Score: {{ finalScore }} / {{ totalQuestions }}</p>
-                    <p v-if="finalPercentage !== null">Percentage: {{ finalPercentage }}%</p>
+                    <div class="rounded-2xl border border-slate-200 p-5">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Percentage</p>
+                        <p class="mt-2 text-3xl font-bold text-slate-950">{{ finalPercentage ?? 0 }}%</p>
+                    </div>
                 </div>
 
-                <div v-if="showsPostResultCapture && ctaEnabled('post_result')" class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div v-if="finalOutcome?.interpretation" class="mt-5 rounded-2xl border border-slate-200 p-5">
+                    <h3 class="text-lg font-bold text-slate-950">Interpretation</h3>
+                    <p class="mt-3 text-sm leading-6 text-slate-600">{{ finalOutcome.interpretation }}</p>
+                </div>
+
+                <div v-if="resultBreakdownPoints.length" class="mt-5 rounded-2xl border border-slate-200 p-5">
+                    <h3 class="text-lg font-bold text-slate-950">Breakdown</h3>
+                    <ul class="mt-4 space-y-3">
+                        <li v-for="point in resultBreakdownPoints" :key="point" class="flex gap-3 text-sm leading-6 text-slate-700">
+                            <span class="mt-2 h-2 w-2 shrink-0 rounded-full bg-emerald-600"></span>
+                            <span>{{ point }}</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div v-if="resultNextSteps.length" class="mt-5 rounded-2xl border border-slate-200 p-5">
+                    <h3 class="text-lg font-bold text-slate-950">Next Steps</h3>
+                    <ol class="mt-4 space-y-3">
+                        <li v-for="(step, index) in resultNextSteps" :key="step" class="flex gap-3 text-sm leading-6 text-slate-700">
+                            <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-950 text-xs font-bold text-white">{{ index + 1 }}</span>
+                            <span>{{ step }}</span>
+                        </li>
+                    </ol>
+                </div>
+
+                <LeadSlotRenderer slot-key="qo_post_result" class="mt-6" />
+
+                <div v-if="showsPostResultCapture" class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
                     <p class="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                        Post Result
+                        Post Result · {{ ctaBehaviorLabel('post_result') }} · {{ ctaIntent('post_result') }} intent
                     </p>
 
                     <h3 class="mt-2 text-xl font-bold text-slate-950">
@@ -687,7 +894,12 @@ function back() {
                     </p>
 
                     <div class="mt-4 flex flex-col gap-3 sm:flex-row">
-                        <button type="button" class="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800">
+                        <button
+                            type="button"
+                            class="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                            :disabled="isProcessing"
+                            @click="submitCapture('post_result')"
+                        >
                             {{ ctaLabel('post_result', 'Get My Action Plan') }}
                         </button>
 

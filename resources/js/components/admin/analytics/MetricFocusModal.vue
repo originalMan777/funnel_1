@@ -9,7 +9,13 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { formatDuration } from '@/components/admin/analytics/formatters';
+import MetricFocusVisual from '@/components/admin/analytics/MetricFocusVisual.vue';
 import { resolveMetricDefinition } from '@/components/admin/analytics/metricDefinitionRegistry';
+import {
+    getApprovedVisualDefinition,
+    resolveApprovedVisual,
+    type ApprovedAnalyticsVisualKey,
+} from '@/components/admin/analytics/visualizationRegistry';
 
 type FocusMetric = {
     key?: string;
@@ -26,6 +32,7 @@ type FocusMetric = {
     delta?: string | number | null;
     insight?: string | null;
     recommendation?: string | null;
+    approvedVisualKey?: ApprovedAnalyticsVisualKey | null;
     formula?: string | null;
     whyItMatters?: string | null;
     affects?: string[];
@@ -166,6 +173,31 @@ const resolvedOperatorGuidance = computed(
         resolvedMetricDefinition.value?.operatorGuidance ||
         'Operator guidance is not mapped for this metric yet.',
 );
+
+const visualContext = computed(() => ({
+    clusterKey: props.cluster?.key,
+    clusterLabel: props.cluster?.label,
+    subClusterKey: props.subCluster?.key,
+    subClusterLabel: props.subCluster?.label,
+    metricGroupKey: props.metricGroup?.key,
+    metricGroupLabel: props.metricGroup?.label,
+    metricKey: props.metric?.key,
+    metricLabel: props.metric?.label,
+}));
+
+const currentVisual = computed(() => {
+    if (props.metric?.approvedVisualKey) {
+        return getApprovedVisualDefinition(props.metric.approvedVisualKey);
+    }
+
+    return props.metric ? resolveApprovedVisual(visualContext.value) : null;
+});
+
+const currentVisualLabel = computed(() =>
+    currentVisual.value
+        ? `${currentVisual.value.cardNumber} ${currentVisual.value.label}`
+        : 'Visual needs approval',
+);
 </script>
 
 <template>
@@ -175,32 +207,57 @@ const resolvedOperatorGuidance = computed(
         >
             <div class="space-y-8 p-6 sm:p-8">
                 <DialogHeader class="space-y-3">
-                    <p
-                        class="text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase"
-                    >
-                        Metric Focus
+                    <p class="text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase">
+                        Visual Approval Detail
                     </p>
-                    <DialogTitle class="text-3xl font-semibold text-slate-950">
-                        {{ props.metric?.label ?? 'Metric' }}
-                    </DialogTitle>
-                    <DialogDescription class="max-w-3xl text-sm leading-6 text-slate-600">
-                        {{ resolvedHeaderDescription }}
-                    </DialogDescription>
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                        <div>
+                            <DialogTitle class="text-3xl font-semibold text-slate-950">
+                                {{ props.metric?.label ?? 'Metric' }}
+                            </DialogTitle>
+                            <DialogDescription class="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
+                                {{ resolvedHeaderDescription }}
+                            </DialogDescription>
+                        </div>
+                        <div class="text-left lg:text-right">
+                            <p class="text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase">
+                                Current Value
+                            </p>
+                            <p class="mt-2 text-4xl font-semibold tracking-tight text-slate-950">
+                                {{ formatMetricValue(props.metric) }}
+                            </p>
+                        </div>
+                    </div>
                 </DialogHeader>
 
-                <div class="grid gap-6 xl:grid-cols-[1.15fr,0.85fr]">
-                    <section
-                        class="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-5"
-                    >
-                        <p
-                            class="text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase"
-                        >
-                            Current Value
-                        </p>
-                        <div class="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
-                            {{ formatMetricValue(props.metric) }}
+                <section
+                    class="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-5"
+                >
+                    <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                            <p
+                                class="text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase"
+                            >
+                                Current Value
+                            </p>
+                            <div class="mt-3 text-5xl font-semibold tracking-tight text-slate-950">
+                                {{ formatMetricValue(props.metric) }}
+                            </div>
+                            <p
+                                v-if="props.metric?.helper"
+                                class="mt-2 text-sm font-medium text-slate-500"
+                            >
+                                Units: {{ props.metric.helper }}
+                            </p>
                         </div>
-                        <div class="mt-4 flex flex-wrap gap-2">
+
+                        <div class="flex flex-wrap gap-2 lg:justify-end">
+                            <span class="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-slate-600 uppercase">
+                                Current Visual: {{ currentVisualLabel }}
+                            </span>
+                            <span class="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-slate-600 uppercase">
+                                Visual Category: {{ currentVisual?.category ?? 'unmapped' }}
+                            </span>
                             <span
                                 class="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold tracking-[0.14em] uppercase"
                                 :class="statusBadgeClasses"
@@ -217,14 +274,16 @@ const resolvedOperatorGuidance = computed(
                                 {{ props.metric.trendLabel }}
                             </span>
                         </div>
-                        <p
-                            v-if="props.metric?.helper"
-                            class="mt-2 text-sm font-medium text-slate-500"
-                        >
-                            Units: {{ props.metric.helper }}
-                        </p>
-                    </section>
+                    </div>
+                </section>
 
+                <MetricFocusVisual
+                    :metric="props.metric"
+                    :context="visualContext"
+                    :visual-key="currentVisual?.key"
+                />
+
+                <div class="grid gap-6 xl:grid-cols-[1.25fr,0.95fr]">
                     <section
                         class="rounded-[1.5rem] border border-slate-200 bg-white p-5"
                     >
@@ -233,7 +292,7 @@ const resolvedOperatorGuidance = computed(
                         >
                             Metric Context
                         </p>
-                        <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                        <div class="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
                             <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                                 <div class="text-xs font-medium text-slate-500">
                                     Cluster
@@ -260,6 +319,34 @@ const resolvedOperatorGuidance = computed(
                                     {{ props.metricGroup?.label ?? '—' }}
                                 </div>
                             </div>
+                        </div>
+                    </section>
+
+                    <section
+                        class="rounded-[1.5rem] border border-slate-200 bg-white p-5"
+                    >
+                        <p
+                            class="text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase"
+                        >
+                            What Affects It
+                        </p>
+                        <div
+                            v-if="resolvedAffects.length"
+                            class="mt-4 flex flex-wrap gap-2"
+                        >
+                            <span
+                                v-for="item in resolvedAffects"
+                                :key="item"
+                                class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm text-slate-600"
+                            >
+                                {{ item }}
+                            </span>
+                        </div>
+                        <div
+                            v-else
+                            class="mt-3 rounded-[1.25rem] border border-slate-200 bg-slate-50 px-5 py-4 text-sm leading-6 text-slate-600"
+                        >
+                            Drivers are not mapped for this metric yet.
                         </div>
                     </section>
                 </div>
@@ -296,12 +383,25 @@ const resolvedOperatorGuidance = computed(
                             <p
                                 class="text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase"
                             >
+                                Why It Matters
+                            </p>
+                            <div
+                                class="mt-3 rounded-[1.25rem] border border-slate-200 bg-slate-50 px-5 py-4 text-sm leading-6 text-slate-600"
+                            >
+                                {{ resolvedWhyItMatters }}
+                            </div>
+                        </section>
+
+                        <section>
+                            <p
+                                class="text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase"
+                            >
                                 Insight
                             </p>
                             <div
                                 class="mt-3 rounded-[1.25rem] border border-slate-200 bg-slate-50 px-5 py-4 text-sm leading-6 text-slate-600"
                             >
-                                {{ props.metric?.insight || resolvedWhyItMatters }}
+                                {{ props.metric?.insight || 'Insight is not mapped for this metric yet.' }}
                             </div>
                         </section>
 
@@ -317,51 +417,9 @@ const resolvedOperatorGuidance = computed(
                                 {{ props.metric?.recommendation || resolvedOperatorGuidance }}
                             </div>
                         </section>
-
-                        <section>
-                            <p
-                                class="text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase"
-                            >
-                                Visual Area
-                            </p>
-                            <div
-                                class="mt-3 flex min-h-[18rem] items-center justify-center rounded-[1.25rem] border border-dashed border-slate-300 bg-slate-50 px-6 text-center text-sm leading-6 text-slate-500"
-                            >
-                                This metric’s chart or focused visual can be mounted
-                                here when a real visualization is wired.
-                            </div>
-                        </section>
                     </section>
 
                     <section class="space-y-6">
-                        <section
-                            class="rounded-[1.5rem] border border-slate-200 bg-white p-5"
-                        >
-                            <p
-                                class="text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase"
-                            >
-                                What Affects It
-                            </p>
-                            <div
-                                v-if="resolvedAffects.length"
-                                class="mt-4 flex flex-wrap gap-2"
-                            >
-                                <span
-                                    v-for="item in resolvedAffects"
-                                    :key="item"
-                                    class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm text-slate-600"
-                                >
-                                    {{ item }}
-                                </span>
-                            </div>
-                            <div
-                                v-else
-                                class="mt-3 rounded-[1.25rem] border border-slate-200 bg-slate-50 px-5 py-4 text-sm leading-6 text-slate-600"
-                            >
-                                Drivers are not mapped for this metric yet.
-                            </div>
-                        </section>
-
                         <section
                             class="rounded-[1.5rem] border border-slate-200 bg-white p-5"
                         >

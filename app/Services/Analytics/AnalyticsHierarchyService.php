@@ -4,12 +4,16 @@ namespace App\Services\Analytics;
 
 use Carbon\CarbonInterface;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
+use Throwable;
 
 class AnalyticsHierarchyService
 {
     public function __construct(
         private readonly AnalyticsDemoMetricValueService $demoMetricValueService,
         private readonly AnalyticsNarrativeService $analyticsNarrativeService,
+        private readonly AnalyticsFunnelService $analyticsFunnelService,
+        private readonly AnalyticsReportService $analyticsReportService,
     ) {}
 
     /**
@@ -31,6 +35,31 @@ class AnalyticsHierarchyService
                 ->values()
                 ->all(),
         ];
+    }
+
+    /**
+     * @return array{
+     *     cluster: array<string, mixed>,
+     *     subClusters: array<int, array<string, mixed>>
+     * }
+     */
+    public function hydratedClusterPayload(string $clusterKey, CarbonInterface $from, CarbonInterface $to): array
+    {
+        $payload = $this->clusterPayload($clusterKey, $from, $to);
+
+        try {
+            return match ($clusterKey) {
+                'traffic' => $this->hydrateTrafficMetricValues($payload, $from, $to),
+                'capture' => $this->hydrateCaptureMetricValues($payload, $from, $to),
+                'flow' => $this->hydrateFlowMetricValues($payload, $from, $to),
+                'behavior' => $this->hydrateBehaviorMetricValues($payload, $from, $to),
+                'results' => $this->hydrateResultsMetricValues($payload, $from, $to),
+                'source' => $this->hydrateSourceMetricValues($payload, $from, $to),
+                default => abort(404),
+            };
+        } catch (Throwable) {
+            return $payload;
+        }
     }
 
     public function normalizeMetricGroupKey(string $metricGroupKey): string
@@ -121,6 +150,199 @@ class AnalyticsHierarchyService
         return $payload;
     }
 
+    private function hydrateTrafficMetricValues(array $payload, CarbonInterface $from, CarbonInterface $to): array
+    {
+        $pageRows = $this->analyticsReportService->pagePerformance($from, $to)->values();
+
+        if ($pageRows->isNotEmpty()) {
+            $views = (float) $pageRows->sum('views');
+            $conversions = (float) $pageRows->sum('conversions');
+
+            $payload = $this->withMetricValues($payload, 'pages', 'page_performance', [
+                'views' => $this->metricOverride($views),
+                'conversion_rate' => $this->percentMetricOverride($this->safePercent($conversions, $views)),
+                'time_to_conversion' => $this->secondsMetricOverride($this->averageMetric($pageRows, 'avg_time_to_conversion_seconds')),
+            ]);
+        }
+
+        $ctaRows = $this->analyticsReportService->ctaPerformance($from, $to)->values();
+
+        if ($ctaRows->isNotEmpty()) {
+            $impressions = (float) $ctaRows->sum('impressions');
+            $clicks = (float) $ctaRows->sum('clicks');
+            $conversions = (float) $ctaRows->sum('conversions');
+
+            $payload = $this->withMetricValues($payload, 'ctas', 'cta_performance', [
+                'views' => $this->metricOverride($impressions),
+                'clicks' => $this->metricOverride($clicks),
+                'ctr' => $this->percentMetricOverride($this->safePercent($clicks, $impressions)),
+                'conversion_rate' => $this->percentMetricOverride($this->safePercent($conversions, $clicks)),
+                'time_to_conversion' => $this->secondsMetricOverride($this->averageMetric($ctaRows, 'avg_click_to_conversion_seconds')),
+            ]);
+        }
+
+        return $payload;
+    }
+
+    private function hydrateCaptureMetricValues(array $payload, CarbonInterface $from, CarbonInterface $to): array
+    {
+        $leadBoxRows = $this->analyticsReportService->leadBoxPerformance($from, $to)->values();
+
+        if ($leadBoxRows->isNotEmpty()) {
+            $payload = $this->withMetricValues($payload, 'lead_boxes', 'lead_box_lifecycle', [
+                'views' => $this->metricOverride((float) $leadBoxRows->sum('impressions')),
+                'clicks' => $this->metricOverride((float) $leadBoxRows->sum('clicks')),
+                'submissions' => $this->metricOverride((float) $leadBoxRows->sum('submissions')),
+                'failures' => $this->metricOverride((float) $leadBoxRows->sum('failures')),
+                'duration' => $this->secondsMetricOverride($this->averageMetric($leadBoxRows, 'avg_impression_to_submit_seconds')),
+            ]);
+        }
+
+        $popupRows = $this->analyticsReportService->popupPerformance($from, $to)->values();
+
+        if ($popupRows->isNotEmpty()) {
+            $impressions = (float) $popupRows->sum('impressions');
+            $opens = (float) $popupRows->sum('opens');
+
+            $payload = $this->withMetricValues($payload, 'popups', 'popup_lifecycle', [
+                'views' => $this->metricOverride($impressions),
+                'open_rate' => $this->percentMetricOverride($this->safePercent($opens, $impressions)),
+                'dismissals' => $this->metricOverride((float) $popupRows->sum('dismissals')),
+                'submissions' => $this->metricOverride((float) $popupRows->sum('submissions')),
+                'duration' => $this->secondsMetricOverride($this->averageMetric($popupRows, 'avg_open_to_submit_seconds')),
+            ]);
+        }
+
+        return $payload;
+    }
+
+    private function hydrateFlowMetricValues(array $payload, CarbonInterface $from, CarbonInterface $to): array
+    {
+        $funnelRows = $this->analyticsFunnelService->analyze($from, $to)->values();
+        $entrants = (float) $funnelRows->sum(fn (array $row) => (float) data_get($row, 'steps.0.count', 0));
+        $conversions = (float) $funnelRows->sum(fn (array $row) => (float) ($row['conversion_count'] ?? 0));
+        $dropOffs = $funnelRows
+            ->map(fn (array $row) => data_get($row, 'top_drop_off.drop_off_to_next'))
+            ->filter(fn ($value) => $value !== null)
+            ->values();
+
+        return $this->withMetricValues($payload, 'funnels', 'funnel_performance', [
+            'completion_rate' => $this->percentMetricOverride($this->safePercent($conversions, $entrants)),
+            'drop_off' => $this->metricOverride($dropOffs->isNotEmpty() ? (float) $dropOffs->sum() : null),
+            'duration' => $this->secondsMetricOverride($this->averageMetric($funnelRows, 'average_elapsed_seconds')),
+        ]);
+    }
+
+    private function hydrateBehaviorMetricValues(array $payload, CarbonInterface $from, CarbonInterface $to): array
+    {
+        $scenarioRows = $this->analyticsReportService->scenarioPerformance($from, $to)->values();
+
+        if ($scenarioRows->isEmpty()) {
+            return $payload;
+        }
+
+        $sessions = (float) $scenarioRows->sum('sessions');
+        $convertedSessions = (float) $scenarioRows->sum('converted_sessions');
+
+        return $this->withMetricValues($payload, 'scenarios', 'scenario_performance', [
+            'views' => $this->metricOverride($sessions),
+            'conversion_rate' => $this->percentMetricOverride($this->safePercent($convertedSessions, $sessions)),
+            'duration' => $this->secondsMetricOverride($this->averageMetric($scenarioRows, 'average_session_duration_seconds')),
+        ]);
+    }
+
+    private function hydrateResultsMetricValues(array $payload, CarbonInterface $from, CarbonInterface $to): array
+    {
+        $summary = $this->analyticsReportService->conversionSummary($from, $to);
+        $totalRows = $summary['total']->values();
+
+        if ($totalRows->isEmpty()) {
+            return $payload;
+        }
+
+        return $this->withMetricValues($payload, 'conversions', 'conversion_performance', [
+            'submissions' => $this->metricOverride((float) $totalRows->sum('metric_value')),
+            'time_to_conversion' => $this->secondsMetricOverride($summary['average_time_to_conversion_seconds']),
+        ]);
+    }
+
+    private function hydrateSourceMetricValues(array $payload, CarbonInterface $from, CarbonInterface $to): array
+    {
+        $summary = $this->analyticsReportService->attributionSummary($from, $to);
+        $attributedConversions = (float) ($summary['overview']['attributed_conversions'] ?? 0);
+        $unattributedConversions = (float) ($summary['overview']['unattributed_conversions'] ?? 0);
+        $totalConversions = $attributedConversions + $unattributedConversions;
+
+        if ($totalConversions <= 0) {
+            return $payload;
+        }
+
+        return $this->withMetricValues($payload, 'attribution', 'attribution_performance', [
+            'submissions' => $this->metricOverride($attributedConversions),
+            'attribution_coverage' => $this->percentMetricOverride($this->safePercent($attributedConversions, $totalConversions)),
+        ]);
+    }
+
+    /**
+     * @return array{value:string,displayValue:string}
+     */
+    private function metricOverride(null|int|float|string $value): array
+    {
+        $displayValue = $this->formatMetricDisplayValue($value);
+
+        return [
+            'value' => $displayValue,
+            'displayValue' => $displayValue,
+        ];
+    }
+
+    /**
+     * @return array{value:string,displayValue:string}
+     */
+    private function percentMetricOverride(?float $value): array
+    {
+        return $this->metricOverride($value !== null ? number_format($value, 2).'%' : null);
+    }
+
+    /**
+     * @return array{value:string,displayValue:string,helper:string}
+     */
+    private function secondsMetricOverride(?float $value): array
+    {
+        return [
+            ...$this->metricOverride($value !== null ? round($value, 2) : null),
+            'helper' => 'seconds',
+        ];
+    }
+
+    private function formatMetricDisplayValue(null|int|float|string $value): string
+    {
+        if ($value === null || $value === '') {
+            return '—';
+        }
+
+        if (is_float($value) || is_int($value)) {
+            return number_format($value, (float) $value === floor((float) $value) ? 0 : 2);
+        }
+
+        return (string) $value;
+    }
+
+    private function safePercent(float|int $numerator, float|int $denominator): ?float
+    {
+        return $denominator > 0 ? ((float) $numerator / (float) $denominator) * 100 : null;
+    }
+
+    private function averageMetric(Collection $rows, string $key): ?float
+    {
+        $values = $rows
+            ->map(fn (array $row) => $row[$key] ?? null)
+            ->filter(fn ($value) => $value !== null)
+            ->values();
+
+        return $values->isNotEmpty() ? (float) $values->avg() : null;
+    }
+
     /**
      * @return array<string, mixed>|null
      */
@@ -187,8 +409,56 @@ class AnalyticsHierarchyService
                 $metricGroupKey,
                 $metric['key'],
             ),
+            'approvedVisualKey' => $this->approvedVisualKey($clusterKey, $subClusterKey, $metricGroupKey, $metric['key']),
             'helper' => $metric['helper'] ?? null,
         ];
+    }
+
+    private function approvedVisualKey(
+        string $clusterKey,
+        string $subClusterKey,
+        string $metricGroupKey,
+        string $metricKey,
+    ): ?string {
+        return [
+            'traffic|ctas|cta_performance|ctr' => 'half-ring-score',
+            'traffic|pages|page_performance|conversion_rate' => 'half-ring-score',
+            'traffic|ctas|cta_performance|conversion_rate' => 'half-ring-score',
+            'capture|popups|popup_lifecycle|open_rate' => 'half-ring-score',
+            'flow|funnels|funnel_performance|completion_rate' => 'funnel-flow',
+            'flow|funnels|funnel_performance|drop_off' => 'funnel-flow',
+            'traffic|pages|page_performance|time_to_conversion' => 'range-variance',
+            'traffic|ctas|cta_performance|time_to_conversion' => 'range-variance',
+            'results|conversions|conversion_performance|time_to_conversion' => 'range-variance',
+            'source|attribution|attribution_performance|attribution_coverage' => 'premium-donut',
+            'traffic|pages|page_performance|views' => 'premium-vertical-bar',
+            'traffic|ctas|cta_performance|views' => 'premium-vertical-bar',
+            'traffic|ctas|cta_performance|clicks' => 'premium-vertical-bar',
+            'capture|lead_boxes|lead_box_lifecycle|views' => 'mini-report-card',
+            'capture|lead_boxes|lead_box_lifecycle|clicks' => 'mini-report-card',
+            'capture|lead_boxes|lead_box_lifecycle|submissions' => 'mini-report-card',
+            'capture|popups|popup_lifecycle|views' => 'mini-report-card',
+            'capture|popups|popup_lifecycle|submissions' => 'mini-report-card',
+            'capture|popups|popup_lifecycle|dismissals' => 'mini-report-card',
+            'results|conversions|conversion_performance|submissions' => 'premium-donut',
+            'capture|lead_boxes|lead_box_lifecycle|failures' => 'mini-report-card',
+            'capture|lead_boxes|lead_box_lifecycle|duration' => 'range-variance',
+            'capture|popups|popup_lifecycle|duration' => 'range-variance',
+            'flow|funnels|funnel_performance|duration' => 'range-variance',
+            'behavior|scenarios|scenario_performance|views' => 'stacked-performance',
+            'behavior|scenarios|scenario_performance|conversion_rate' => 'stacked-performance',
+            'behavior|scenarios|scenario_performance|duration' => 'range-variance',
+            'source|attribution|attribution_performance|submissions' => 'source-ranking-table',
+        ][$this->contextKey($clusterKey, $subClusterKey, $metricGroupKey, $metricKey)] ?? null;
+    }
+
+    private function contextKey(
+        string $clusterKey,
+        string $subClusterKey,
+        string $metricGroupKey,
+        string $metricKey,
+    ): string {
+        return implode('|', [$clusterKey, $subClusterKey, $metricGroupKey, $metricKey]);
     }
 
     private function isEmptyMetricValue(mixed $value): bool

@@ -37,8 +37,14 @@ class QOOutcomeController extends Controller
         $data = $request->validate([
             'outcome_key' => ['required', 'string', 'max:255'],
             'title' => ['required', 'string', 'max:255'],
+            'result_headline' => ['nullable', 'string', 'max:255'],
             'summary' => ['nullable', 'string'],
             'body' => ['nullable', 'string'],
+            'interpretation' => ['nullable', 'string'],
+            'breakdown_points' => ['nullable', 'array'],
+            'breakdown_points.*' => ['nullable', 'string', 'max:255'],
+            'next_steps' => ['nullable', 'array'],
+            'next_steps.*' => ['nullable', 'string', 'max:255'],
             'min_score' => ['nullable', 'numeric'],
             'max_score' => ['nullable', 'numeric'],
             'category_key' => ['nullable', 'string', 'max:255'],
@@ -48,10 +54,25 @@ class QOOutcomeController extends Controller
         ]);
 
         $data['summary'] = $data['summary'] ?? '';
+        $data['breakdown_points'] = $this->cleanTextList($data['breakdown_points'] ?? []);
+        $data['next_steps'] = $this->cleanTextList($data['next_steps'] ?? []);
 
         $outcome->update($data);
 
         return back()->with('success', 'Outcome saved.');
+    }
+
+    /**
+     * @param array<int, string|null> $values
+     * @return array<int, string>
+     */
+    private function cleanTextList(array $values): array
+    {
+        return collect($values)
+            ->map(fn ($value) => is_string($value) ? trim($value) : '')
+            ->filter()
+            ->values()
+            ->all();
     }
 
     public function destroy($itemId, $outcomeId)

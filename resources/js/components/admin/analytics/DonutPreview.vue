@@ -53,7 +53,7 @@ const neutralSegmentPresets = {
             { label: 'Segment C', value: 25, colorClass: 'text-slate-400' },
         ],
     },
-} as const;
+};
 
 const presetKey = computed(() => {
     const fingerprint = `${props.metric.key ?? ''} ${props.metric.label}`.toLowerCase();

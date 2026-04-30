@@ -39,15 +39,26 @@ class ReportController extends Controller
     public function metrics(Request $request): Response
     {
         [$from, $to] = $this->resolveRange($request);
+        $clusters = collect(['traffic', 'capture', 'flow', 'behavior', 'results', 'source'])
+            ->map(fn (string $clusterKey) => $this->clusterPayload($clusterKey, $from, $to))
+            ->values()
+            ->all();
 
         return Inertia::render('Admin/Analytics/Metrics/Index', [
             'filters' => $this->analyticsFilters($from->toDateString(), $to->toDateString()),
+            'analyticsClusters' => $clusters,
+            'metricOccurrences' => $this->metricOccurrences($clusters),
         ]);
     }
 
     public function graphicsLab(): Response
     {
         return Inertia::render('Admin/Analytics/GraphicsLab');
+    }
+
+    public function visualWorkbench(): Response
+    {
+        return Inertia::render('Admin/Analytics/VisualWorkbench');
     }
 
     public function showCluster(Request $request, string $clusterKey): Response
@@ -92,17 +103,7 @@ class ReportController extends Controller
      */
     private function clusterPayload(string $clusterKey, $from, $to): array
     {
-        $payload = $this->analyticsHierarchyService->clusterPayload($clusterKey, $from, $to);
-
-        $payload = match ($clusterKey) {
-            'traffic' => $this->hydrateTrafficMetricValues($payload, $from, $to),
-            'capture' => $this->hydrateCaptureMetricValues($payload, $from, $to),
-            'flow' => $this->hydrateFlowMetricValues($payload, $from, $to),
-            'behavior' => $this->hydrateBehaviorMetricValues($payload, $from, $to),
-            'results' => $this->hydrateResultsMetricValues($payload, $from, $to),
-            'source' => $this->hydrateSourceMetricValues($payload, $from, $to),
-            default => abort(404),
-        };
+        $payload = $this->analyticsHierarchyService->hydratedClusterPayload($clusterKey, $from, $to);
 
         return [
             ...$payload,
@@ -166,6 +167,48 @@ class ReportController extends Controller
             'metricGroup' => $metricGroup,
             'metrics' => $metricGroup['metrics'],
         ];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $clusters
+     * @return array<int, array<string, mixed>>
+     */
+    private function metricOccurrences(array $clusters): array
+    {
+        return collect($clusters)
+            ->flatMap(function (array $cluster): Collection {
+                return collect($cluster['subClusters'] ?? [])
+                    ->flatMap(function (array $subCluster) use ($cluster): Collection {
+                        return collect($subCluster['metricGroups'] ?? [])
+                            ->flatMap(function (array $metricGroup) use ($cluster, $subCluster): Collection {
+                                return collect($metricGroup['metrics'] ?? [])
+                                    ->map(fn (array $metric): array => [
+                                        ...$metric,
+                                        'occurrenceKey' => implode(':', [
+                                            $cluster['cluster']['key'],
+                                            $subCluster['key'],
+                                            $metricGroup['key'],
+                                            $metric['key'] ?? $metric['label'],
+                                        ]),
+                                        'cluster' => [
+                                            'key' => $cluster['cluster']['key'],
+                                            'label' => $cluster['cluster']['label'],
+                                        ],
+                                        'subCluster' => [
+                                            'key' => $subCluster['key'],
+                                            'label' => $subCluster['label'],
+                                        ],
+                                        'metricGroup' => [
+                                            'key' => $metricGroup['key'],
+                                            'label' => $metricGroup['label'],
+                                            'detailHref' => $metricGroup['detailHref'] ?? null,
+                                        ],
+                                    ]);
+                            });
+                    });
+            })
+            ->values()
+            ->all();
     }
 
     /**

@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { formatDuration } from '@/components/admin/analytics/formatters';
+import MetricFocusVisual from '@/components/admin/analytics/MetricFocusVisual.vue';
+import VisualVolumeBar from '@/components/admin/analytics/visuals/VisualVolumeBar.vue';
+import VisualHalfRingScoreV2 from '@/components/admin/analytics/visuals/VisualHalfRingScoreV2.vue';
 import {
+    availableTestingVisuals,
     getApprovedVisualDefinition,
     getVisualConfigForMetric,
     resolveApprovedVisual,
@@ -25,6 +29,11 @@ type Metric = {
     delta?: string | number | null;
     insight?: string | null;
     recommendation?: string | null;
+    definition?: string | null;
+    contextMax?: string | number | null;
+    baseline?: string | number | null;
+    goal?: string | number | null;
+    approvedVisualKey?: ApprovedAnalyticsVisualKey | null;
     trend?: Array<Record<string, string | number>> | null;
     series?:
         | Array<{ key: string; label?: string; colorClass?: string }>
@@ -37,6 +46,12 @@ type Metric = {
     }>;
 };
 
+type TrendSeriesDefinition = {
+    key: string;
+    label?: string;
+    colorClass?: string;
+};
+
 const props = withDefaults(
     defineProps<{
         metric: Metric;
@@ -45,9 +60,11 @@ const props = withDefaults(
         approvedVisualType?: ApprovedAnalyticsVisualKey;
         visualContext?: MetricVisualContext;
         clickable?: boolean;
+        approvalMode?: boolean;
     }>(),
     {
         clickable: false,
+        approvalMode: false,
     },
 );
 
@@ -118,12 +135,78 @@ const resolvedApprovedVisual = computed(() => {
         return getApprovedVisualDefinition(props.approvedVisualType);
     }
 
+    if (props.metric.approvedVisualKey) {
+        return getApprovedVisualDefinition(props.metric.approvedVisualKey);
+    }
+
     return resolveApprovedVisual({
         ...props.visualContext,
         metricKey: props.visualContext?.metricKey ?? props.metric.key,
         metricLabel: props.visualContext?.metricLabel ?? props.metric.label,
     });
 });
+
+const testingVisualKey = ref<ApprovedAnalyticsVisualKey | null>(null);
+const isTestingVisual = ref(false);
+
+const activeApprovalVisualKey = computed(
+    () =>
+        testingVisualKey.value ??
+        resolvedApprovedVisual.value?.key ??
+        props.approvedVisualType ??
+        props.metric.approvedVisualKey ??
+        null,
+);
+
+const approvalStatus = computed(() => {
+    if (isTestingVisual.value) {
+        return 'Testing';
+    }
+
+    return activeApprovalVisualKey.value ? 'Approved' : 'Needs Review';
+});
+
+const approvalStatusClasses = computed(() => {
+    if (approvalStatus.value === 'Testing') {
+        return 'border-amber-200 bg-amber-50 text-amber-700';
+    }
+
+    if (approvalStatus.value === 'Needs Review') {
+        return 'border-rose-200 bg-rose-50 text-rose-700';
+    }
+
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+});
+
+const visualDisplayLabel = computed(() => {
+    const visual = activeApprovalVisualKey.value
+        ? getApprovedVisualDefinition(
+            activeApprovalVisualKey.value,
+            isTestingVisual.value ? 'testing' : 'production',
+        )
+        : resolvedApprovedVisual.value;
+
+    return visual ? `${visual.cardNumber} ${visual.label}` : 'Needs visual approval';
+});
+
+const openTestingMode = () => {
+    testingVisualKey.value = resolvedApprovedVisual.value?.key ?? props.approvedVisualType ?? null;
+    isTestingVisual.value = true;
+};
+
+const applyPreview = (visualKey: ApprovedAnalyticsVisualKey) => {
+    testingVisualKey.value = visualKey;
+    isTestingVisual.value = true;
+};
+
+const confirmVisual = () => {
+    isTestingVisual.value = false;
+};
+
+const cancelTesting = () => {
+    testingVisualKey.value = null;
+    isTestingVisual.value = false;
+};
 
 const resolvedVariant = computed(
     () =>
@@ -180,7 +263,7 @@ const cardClasses = computed(() => {
     return [
         'relative flex h-full flex-col overflow-hidden border text-left transition duration-200',
         usesPremiumCardSurface.value
-            ? 'border-slate-200/80 bg-[linear-gradient(160deg,rgba(248,250,252,0.96),rgba(255,255,255,0.94)_55%,rgba(240,249,255,0.9))] shadow-[0_20px_45px_-28px_rgba(14,165,233,0.38)]'
+            ? 'border-slate-200/80 bg-white shadow-sm'
             : 'border-slate-200 bg-slate-50/70',
         variants[resolvedVariant.value],
         clickableClasses,
@@ -314,6 +397,22 @@ const approvedRows = computed(() => {
     return rows;
 });
 
+const relatedContextMax = computed(() => {
+    const values = [
+        parsedNumericValue.value,
+        ...(props.metric.relatedMetrics ?? []).map((metric) => parseNumericValue(metric.value)),
+    ].filter((value): value is number => value !== null && value > 0);
+
+    return values.length > 1 ? Math.max(...values) : null;
+});
+
+const volumeParsedData = computed(() => ({
+    numericValue: parsedNumericValue.value,
+    contextMax: parseNumericValue(props.metric.contextMax ?? '') ?? relatedContextMax.value,
+    baseline: parseNumericValue(props.metric.baseline ?? ''),
+    goal: parseNumericValue(props.metric.goal ?? ''),
+}));
+
 const approvedDataStateLabel = computed(() =>
     props.metric.dataSource === 'local_demo'
         ? 'Local demo'
@@ -403,6 +502,12 @@ const getComparisonFill = (value: string | number) => {
     return Math.min(Math.max((numeric / comparisonScaleMax.value) * 100, 0), 100);
 };
 
+const isTrendSeriesDefinition = (series: unknown): series is TrendSeriesDefinition =>
+    typeof series === 'object' &&
+    series !== null &&
+    'key' in series &&
+    typeof series.key === 'string';
+
 const trendRows = computed(() =>
     Array.isArray(props.metric.trend) ? props.metric.trend : [],
 );
@@ -412,16 +517,8 @@ const trendSeriesDefinitions = computed(() => {
         return [];
     }
 
-    if (
-        typeof props.metric.series[0] === 'object' &&
-        props.metric.series[0] !== null &&
-        'key' in props.metric.series[0]
-    ) {
-        return props.metric.series as Array<{
-            key: string;
-            label?: string;
-            colorClass?: string;
-        }>;
+    if (props.metric.series.every(isTrendSeriesDefinition)) {
+        return props.metric.series;
     }
 
     return [];
@@ -534,16 +631,171 @@ const onSelect = () => {
 </script>
 
 <template>
+    <article
+        v-if="approvalMode"
+        class="flex h-full min-h-[35rem] flex-col rounded-[1rem] border border-slate-200 bg-white p-5 text-left shadow-sm"
+    >
+        <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0">
+                <p class="text-xl font-semibold tracking-tight text-slate-950">
+                    {{ metric.label }}
+                </p>
+                <p class="mt-1 truncate text-xs font-medium text-slate-500">
+                    {{ metric.key ?? metric.label }}
+                </p>
+            </div>
+            <span
+                class="inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase"
+                :class="approvalStatusClasses"
+            >
+                {{ approvalStatus }}
+            </span>
+        </div>
+
+        <div class="mt-4 flex flex-wrap gap-2">
+            <span
+                v-if="visualContext?.clusterLabel"
+                class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600"
+            >
+                {{ visualContext.clusterLabel }}
+            </span>
+            <span
+                v-if="visualContext?.subClusterLabel"
+                class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600"
+            >
+                {{ visualContext.subClusterLabel }}
+            </span>
+            <span
+                v-if="visualContext?.metricGroupLabel"
+                class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600"
+            >
+                {{ visualContext.metricGroupLabel }}
+            </span>
+        </div>
+
+        <p class="mt-4 line-clamp-1 text-sm leading-6 text-slate-600">
+            {{ metric.definition || metric.description || breakdown }}
+        </p>
+
+        <div class="mt-3 flex items-center justify-between gap-3">
+            <div>
+                <p class="text-[11px] font-semibold tracking-[0.16em] text-slate-500 uppercase">
+                    Current Approved Visual
+                </p>
+                <p class="mt-1 text-sm font-semibold text-slate-900">
+                    {{ visualDisplayLabel }}
+                </p>
+            </div>
+            <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-500 capitalize">
+                {{ metric.dataSource === 'real' ? 'real' : 'demo' }}
+            </span>
+        </div>
+
+        <MetricFocusVisual
+            class="mt-4"
+            :metric="metric"
+            :context="visualContext ?? {}"
+            :visual-key="activeApprovalVisualKey"
+            visual-mode="testing"
+            compact
+        />
+
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+            <button
+                type="button"
+                class="inline-flex items-center justify-center rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                @click="emit('select', metric)"
+            >
+                View Detail
+            </button>
+            <button
+                type="button"
+                class="inline-flex items-center justify-center rounded-lg border border-slate-900 bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+                @click="openTestingMode"
+            >
+                Test Visual
+            </button>
+        </div>
+
+        <section
+            v-if="isTestingVisual"
+            class="mt-5 border-t border-slate-200 pt-5"
+        >
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-sm font-semibold text-slate-950">
+                        Available Visuals
+                    </p>
+                    <p class="mt-1 text-xs text-slate-500">
+                        Preview changes are local to this card.
+                    </p>
+                </div>
+                <div class="flex gap-2">
+                    <button
+                        type="button"
+                        class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                        @click="cancelTesting"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="button"
+                        class="rounded-lg border border-emerald-700 bg-emerald-700 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-800"
+                        @click="confirmVisual"
+                    >
+                        Confirm Visual
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-4 grid max-h-[38rem] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
+                <article
+                    v-for="visual in availableTestingVisuals"
+                    :key="visual.key"
+                    class="rounded-[0.85rem] border border-slate-200 bg-slate-50 p-3"
+                >
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <p class="text-sm font-semibold text-slate-950">
+                                {{ visual.cardNumber }} {{ visual.label }}
+                            </p>
+                            <p class="mt-1 text-xs capitalize text-slate-500">
+                                {{ visual.category }} / {{ visual.complexity }}
+                            </p>
+                        </div>
+                        <span
+                            v-if="activeApprovalVisualKey === visual.key"
+                            class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-700"
+                        >
+                            Active
+                        </span>
+                    </div>
+                    <MetricFocusVisual
+                        class="mt-3"
+                        :metric="metric"
+                        :context="visualContext ?? {}"
+                        :visual-key="visual.key"
+                        visual-mode="testing"
+                        compact
+                    />
+                    <button
+                        type="button"
+                        class="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                        @click="applyPreview(visual.key)"
+                    >
+                        Apply Preview
+                    </button>
+                </article>
+            </div>
+        </section>
+    </article>
+
     <button
+        v-else
         type="button"
         :class="cardClasses"
         @click="onSelect"
     >
-        <div
-            v-if="usesPremiumCardSurface"
-            class="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.2),transparent_60%)]"
-        />
-
         <div class="flex items-start justify-between gap-3">
             <div>
                 <p class="text-[10px] font-semibold tracking-[0.18em] text-slate-500 uppercase">
@@ -652,6 +904,14 @@ const onSelect = () => {
                     </svg>
                 </div>
 
+                <VisualHalfRingScoreV2
+                    v-else-if="resolvedApprovedVisual.key === 'half-ring-score-v2'"
+                    :value="progressDisplayValue"
+                    :parsed-data="{ numericValue: parsedPercent, displayValue: progressDisplayValue }"
+                    :status="props.metric.status ?? null"
+                    :size="isCompactVariant ? 'sm' : 'md'"
+                />
+
                 <div
                     v-else-if="resolvedApprovedVisual.key === 'premium-donut'"
                     class="flex items-center justify-center"
@@ -704,7 +964,7 @@ const onSelect = () => {
                         <span>High</span>
                     </div>
                     <div class="relative h-3 rounded-full bg-slate-200">
-                        <div class="absolute inset-y-0 left-[12%] right-[18%] rounded-full bg-gradient-to-r from-amber-300 via-sky-300 to-emerald-300" />
+                        <div class="absolute inset-y-0 left-[12%] right-[18%] rounded-full bg-emerald-200" />
                         <div
                             class="absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border-2 border-white bg-slate-950 shadow-sm"
                             :style="{ left: `calc(${Math.min(Math.max(approvedFill, 10), 90)}% - 0.625rem)` }"
@@ -712,13 +972,21 @@ const onSelect = () => {
                     </div>
                 </div>
 
+                <VisualVolumeBar
+                    v-else-if="resolvedApprovedVisual.key === 'volume-bar'"
+                    :value="formattedValue"
+                    :parsed-data="volumeParsedData"
+                    :status="props.metric.status ?? null"
+                    :size="isCompactVariant ? 'sm' : 'md'"
+                />
+
                 <div
                     v-else-if="resolvedApprovedVisual.key === 'premium-vertical-bar'"
                     class="flex items-end justify-center gap-3"
                     :class="isCompactVariant ? 'h-20' : 'h-28'"
                 >
                     <div class="h-[38%] w-8 rounded-t-xl bg-slate-200" />
-                    <div class="w-10 rounded-t-xl bg-gradient-to-t from-sky-600 to-cyan-300 shadow-[0_12px_24px_-18px_rgba(14,165,233,0.9)]" :style="{ height: approvedBarHeight }" />
+                    <div class="w-10 rounded-t-xl bg-sky-500 shadow-[0_12px_24px_-18px_rgba(14,165,233,0.9)]" :style="{ height: approvedBarHeight }" />
                     <div class="h-[54%] w-8 rounded-t-xl bg-slate-300" />
                 </div>
 
@@ -858,7 +1126,7 @@ const onSelect = () => {
                             :class="
                                 parsedPercent === null
                                     ? 'bg-slate-300/70'
-                                    : 'bg-[linear-gradient(90deg,rgba(14,165,233,0.95),rgba(59,130,246,0.92)_48%,rgba(99,102,241,0.88))] shadow-[0_0_24px_rgba(56,189,248,0.35)]'
+                                    : 'bg-sky-500 shadow-[0_0_24px_rgba(56,189,248,0.35)]'
                             "
                             :style="{ width: `${percentFill}%` }"
                         />
@@ -908,7 +1176,7 @@ const onSelect = () => {
 
                     <div class="relative h-4 overflow-hidden rounded-full bg-slate-200/80 ring-1 ring-slate-200/70">
                         <div
-                            class="absolute inset-y-0 left-0 rounded-full bg-[linear-gradient(90deg,rgba(6,182,212,0.95),rgba(14,165,233,0.92)_46%,rgba(59,130,246,0.88))] shadow-[0_0_24px_rgba(34,211,238,0.35)] transition-[width] duration-500"
+                            class="absolute inset-y-0 left-0 rounded-full bg-sky-500 shadow-[0_0_24px_rgba(34,211,238,0.35)] transition-[width] duration-500"
                             :style="{ width: `${horizontalBarFill}%` }"
                         />
                     </div>
@@ -972,7 +1240,7 @@ const onSelect = () => {
 
                         <div class="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200/80 ring-1 ring-slate-200/70">
                             <div
-                                class="h-full rounded-full bg-[linear-gradient(90deg,rgba(99,102,241,0.95),rgba(79,70,229,0.9)_48%,rgba(37,99,235,0.85))] shadow-[0_0_20px_rgba(99,102,241,0.24)] transition-[width] duration-500"
+                                class="h-full rounded-full bg-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.24)] transition-[width] duration-500"
                                 :style="{ width: `${getComparisonFill(comparisonMetric.value)}%` }"
                             />
                         </div>
@@ -1108,7 +1376,7 @@ const onSelect = () => {
             <div :class="visualAreaClasses">
                 <div
                     v-if="hasTrendData"
-                    class="relative overflow-hidden rounded-[1rem] border border-slate-100/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.95),rgba(241,245,249,0.75))] px-3 py-4"
+                    class="relative overflow-hidden rounded-[1rem] border border-slate-100/80 bg-slate-50 px-3 py-4"
                 >
                     <div class="pointer-events-none absolute inset-x-3 top-4 h-px bg-slate-200/70" />
                     <div class="pointer-events-none absolute inset-x-3 top-1/2 h-px -translate-y-1/2 bg-slate-200/50" />

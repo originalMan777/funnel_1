@@ -64,9 +64,13 @@ const forms = props.slots.map((slot) =>
 const selectedLeadBoxLabel = (formIndex: number) => {
     const form = forms[formIndex];
     if (!form.lead_box_id) return '— Unassigned —';
-    const found = props.activeLeadBoxes.find((box) => box.id === form.lead_box_id);
+    const found = props.activeLeadBoxes.find((box) => box.id === Number(form.lead_box_id));
 
     return found ? `${found.internal_name} — ${found.title}` : 'Selected';
+};
+
+const activeLeadBoxesForSlot = (slot: SlotPayload) => {
+    return props.activeLeadBoxes.filter((box) => box.type === slot.required_type);
 };
 
 const selectedAcquisitionLabel = (formIndex: number) => {
@@ -148,10 +152,28 @@ const handleServiceChange = (formIndex: number) => {
     }
 };
 
+const normalizeId = (value: number | string | null): number | null => {
+    if (value === null || value === '') return null;
+
+    return Number(value);
+};
+
 const submit = (slot: SlotPayload, formIndex: number) => {
-    forms[formIndex].put(route('admin.lead-slots.update', slot.id), {
-        preserveScroll: true,
-    });
+    forms[formIndex]
+        .transform((data) => ({
+            ...data,
+            lead_box_id: normalizeId(data.lead_box_id),
+            acquisition_id: normalizeId(data.acquisition_id),
+            service_id: normalizeId(data.service_id),
+            acquisition_path_id: normalizeId(data.acquisition_path_id),
+        }))
+        .put(route('admin.lead-slots.update', slot.id), {
+            preserveState: false,
+            preserveScroll: true,
+            onFinish: () => {
+                forms[formIndex].transform((data) => data);
+            },
+        });
 };
 </script>
 
@@ -248,13 +270,17 @@ const submit = (slot: SlotPayload, formIndex: number) => {
                                     >
                                         <option :value="null">— Unassigned —</option>
                                         <option
-                                            v-for="box in props.activeLeadBoxes"
+                                            v-for="box in activeLeadBoxesForSlot(slot)"
                                             :key="box.id"
                                             :value="box.id"
                                         >
                                             {{ box.internal_name }} — {{ box.title }} ({{ box.type }})
                                         </option>
                                     </select>
+
+                                    <p class="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                                        Requires {{ slot.required_type }}
+                                    </p>
 
                                     <p class="mt-3 text-sm text-gray-600">
                                         Selected: <span class="font-semibold text-gray-900">{{ selectedLeadBoxLabel(idx) }}</span>
@@ -264,8 +290,8 @@ const submit = (slot: SlotPayload, formIndex: number) => {
                                         {{ forms[idx].errors.lead_box_id }}
                                     </p>
 
-                                    <p v-if="!props.activeLeadBoxes.length" class="mt-3 text-sm text-gray-600">
-                                        No Active Lead Boxes yet.
+                                    <p v-if="!activeLeadBoxesForSlot(slot).length" class="mt-3 text-sm text-gray-600">
+                                        No Active {{ slot.required_type }} Lead Boxes yet.
                                     </p>
                                 </div>
                             </div>

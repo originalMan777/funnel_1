@@ -170,6 +170,8 @@ Route::middleware(['auth', 'admin'])
             ->name('analytics.metrics.index');
         Route::get('/analytics/graphics-lab', [AnalyticsReportController::class, 'graphicsLab'])
             ->name('analytics.graphics-lab');
+        Route::get('/analytics/visual-workbench', [AnalyticsReportController::class, 'visualWorkbench'])
+            ->name('analytics.visual-workbench');
         Route::get('/analytics/clusters/{clusterKey}', [AnalyticsReportController::class, 'showCluster'])
             ->name('analytics.clusters.show');
         Route::get('/analytics/clusters/{clusterKey}/{subClusterKey}/groups/{metricGroupKey}', [AnalyticsReportController::class, 'showMetricGroup']);
@@ -381,6 +383,7 @@ Route::get('/q/{slug}', [QOShowController::class, 'show'])->name('qo.show');
 
 Route::post('/q/{slug}/start', [\App\Http\Controllers\QO\QORuntimeController::class, 'start'])->name('qo.runtime.start');
 Route::post('/q/{slug}/answer', [\App\Http\Controllers\QO\QORuntimeController::class, 'answer'])->name('qo.runtime.answer');
+Route::post('/q/{slug}/capture', [\App\Http\Controllers\QO\QORuntimeController::class, 'capture'])->name('qo.runtime.capture');
 Route::post('/q/{slug}/complete', [\App\Http\Controllers\QO\QORuntimeController::class, 'complete'])->name('qo.runtime.complete');
 
 Route::get('/admin/qo/{id}/preview', [\App\Http\Controllers\Admin\QO\QOItemController::class, 'preview'])

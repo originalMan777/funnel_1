@@ -13,8 +13,12 @@ class QOOutcome extends Model
         'qo_item_id',
         'outcome_key',
         'title',
+        'result_headline',
         'summary',
         'body',
+        'interpretation',
+        'breakdown_points',
+        'next_steps',
         'sort_order',
         'min_score',
         'max_score',
@@ -26,6 +30,8 @@ class QOOutcome extends Model
     ];
 
     protected $casts = [
+        'breakdown_points' => 'array',
+        'next_steps' => 'array',
         'meta_json' => 'array',
     ];
 

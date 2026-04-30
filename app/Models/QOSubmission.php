@@ -51,6 +51,11 @@ class QOSubmission extends Model
         return $this->hasMany(QOAnswer::class, 'qo_submission_id')->orderBy('id');
     }
 
+    public function captures(): HasMany
+    {
+        return $this->hasMany(QOCapture::class, 'qo_submission_id');
+    }
+
     public function lead(): BelongsTo
     {
         return $this->belongsTo(Lead::class, 'lead_id');

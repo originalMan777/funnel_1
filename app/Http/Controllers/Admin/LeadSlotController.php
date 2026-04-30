@@ -11,6 +11,7 @@ use App\Models\LeadSlot;
 use App\Models\Service;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -34,6 +35,7 @@ class LeadSlotController extends Controller
                     ['key' => $slotKey],
                     ['is_enabled' => true],
                 );
+                $slot->load('assignment');
 
                 return [
                     'id' => $slot->id,
@@ -111,7 +113,9 @@ class LeadSlotController extends Controller
     {
         $this->requireLeadBoxAccess($request);
 
-        abort_unless(array_key_exists($leadSlot->key, $this->slotDefinitions()), 404);
+        $slotDefinition = $this->slotDefinitions()[$leadSlot->key] ?? null;
+
+        abort_unless($slotDefinition, 404);
 
         $validated = $request->validate([
             'is_enabled' => ['required', 'boolean'],
@@ -121,73 +125,87 @@ class LeadSlotController extends Controller
             'acquisition_path_id' => ['nullable', 'integer', Rule::exists('acquisition_paths', 'id')],
         ]);
 
-        $leadSlot->update([
-            'is_enabled' => (bool) $validated['is_enabled'],
-        ]);
-
         $leadBoxId = $validated['lead_box_id'] ?? null;
 
-        if ($leadBoxId === null) {
-            LeadAssignment::query()->where('lead_slot_id', $leadSlot->id)->delete();
+        return DB::transaction(function () use ($leadBoxId, $leadSlot, $slotDefinition, $validated) {
+            if ($leadBoxId === null) {
+                $leadSlot->update([
+                    'is_enabled' => (bool) $validated['is_enabled'],
+                ]);
+
+                LeadAssignment::query()->where('lead_slot_id', $leadSlot->id)->delete();
+
+                return redirect()
+                    ->back()
+                    ->with('success', 'Slot updated.');
+            }
+
+            $leadBox = LeadBox::query()->findOrFail((int) $leadBoxId);
+
+            if ($leadBox->status !== LeadBox::STATUS_ACTIVE) {
+                return redirect()
+                    ->back()
+                    ->withErrors([
+                        'lead_box_id' => 'Only Active Lead Boxes can be assigned to this slot.',
+                    ]);
+            }
+
+            if ($leadBox->type !== $slotDefinition['required_type']) {
+                return redirect()
+                    ->back()
+                    ->withErrors([
+                        'lead_box_id' => "This slot requires a {$slotDefinition['required_type']} Lead Box.",
+                    ]);
+            }
+
+            $leadSlot->update([
+                'is_enabled' => (bool) $validated['is_enabled'],
+            ]);
+
+            $acquisitionId = $validated['acquisition_id'] ?? null;
+            $serviceId = $validated['service_id'] ?? null;
+            $acquisitionPathId = $validated['acquisition_path_id'] ?? null;
+
+            $service = $serviceId !== null ? Service::query()->findOrFail((int) $serviceId) : null;
+            $path = $acquisitionPathId !== null ? AcquisitionPath::query()->findOrFail((int) $acquisitionPathId) : null;
+
+            if ($acquisitionId === null) {
+                $serviceId = null;
+                $service = null;
+                $acquisitionPathId = null;
+                $path = null;
+            }
+
+            if ($service !== null && $service->acquisition_id !== (int) $acquisitionId) {
+                $serviceId = null;
+                $service = null;
+            }
+
+            if ($path !== null && $path->acquisition_id !== (int) $acquisitionId) {
+                $acquisitionPathId = null;
+                $path = null;
+            }
+
+            if ($path !== null && $path->service_id !== null && ($service === null || $path->service_id !== $service->id)) {
+                $acquisitionPathId = null;
+                $path = null;
+            }
+
+            LeadAssignment::query()->updateOrCreate(
+                ['lead_slot_id' => $leadSlot->id],
+                [
+                    'lead_box_id' => $leadBox->id,
+                    'acquisition_id' => $acquisitionId,
+                    'service_id' => $serviceId,
+                    'acquisition_path_id' => $acquisitionPathId,
+                    'acquisition_path_key' => $path?->path_key,
+                ],
+            );
 
             return redirect()
                 ->back()
                 ->with('success', 'Slot updated.');
-        }
-
-        $leadBox = LeadBox::query()->findOrFail((int) $leadBoxId);
-
-        if ($leadBox->status !== LeadBox::STATUS_ACTIVE) {
-            return redirect()
-                ->back()
-                ->withErrors([
-                    'lead_box_id' => 'Only Active Lead Boxes can be assigned to this slot.',
-                ]);
-        }
-
-        $acquisitionId = $validated['acquisition_id'] ?? null;
-        $serviceId = $validated['service_id'] ?? null;
-        $acquisitionPathId = $validated['acquisition_path_id'] ?? null;
-
-        $service = $serviceId !== null ? Service::query()->findOrFail((int) $serviceId) : null;
-        $path = $acquisitionPathId !== null ? AcquisitionPath::query()->findOrFail((int) $acquisitionPathId) : null;
-
-        if ($acquisitionId === null) {
-            $serviceId = null;
-            $service = null;
-            $acquisitionPathId = null;
-            $path = null;
-        }
-
-        if ($service !== null && $service->acquisition_id !== (int) $acquisitionId) {
-            $serviceId = null;
-            $service = null;
-        }
-
-        if ($path !== null && $path->acquisition_id !== (int) $acquisitionId) {
-            $acquisitionPathId = null;
-            $path = null;
-        }
-
-        if ($path !== null && $path->service_id !== null && ($service === null || $path->service_id !== $service->id)) {
-            $acquisitionPathId = null;
-            $path = null;
-        }
-
-        LeadAssignment::query()->updateOrCreate(
-            ['lead_slot_id' => $leadSlot->id],
-            [
-                'lead_box_id' => $leadBox->id,
-                'acquisition_id' => $acquisitionId,
-                'service_id' => $serviceId,
-                'acquisition_path_id' => $acquisitionPathId,
-                'acquisition_path_key' => $path?->path_key,
-            ],
-        );
-
-        return redirect()
-            ->back()
-            ->with('success', 'Slot updated.');
+        });
     }
 
     /**
