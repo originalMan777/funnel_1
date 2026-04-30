@@ -9,6 +9,10 @@ import VisualStraightStrengthTrack from '@/components/admin/analytics/visuals/Vi
 import VisualTacticalDonutDistribution from '@/components/admin/analytics/visuals/VisualTacticalDonutDistribution.vue';
 import VisualHardEdgeComparisonBars from '@/components/admin/analytics/visuals/VisualHardEdgeComparisonBars.vue';
 import VisualStackedBlockComparison from '@/components/admin/analytics/visuals/VisualStackedBlockComparison.vue';
+import VisualRankedSourceTable from '@/components/admin/analytics/visuals/VisualRankedSourceTable.vue';
+import VisualRangeVariance from '@/components/admin/analytics/visuals/VisualRangeVariance.vue';
+import VisualDeltaChange from '@/components/admin/analytics/visuals/VisualDeltaChange.vue';
+
 
 export type SandboxVisual = {
     key: string;
@@ -139,4 +143,53 @@ export const visualSandboxRegistry: SandboxVisual[] = [
         { label: 'Referral', value: 31, color: '#dc2626', meta: 'Needs lift' },
     ],
 },
+
+{
+    key: 'ranked-source-table',
+    name: 'Ranked Source Table',
+    status: 'Testing',
+    purpose: 'Premium ranking table for top performers with gradient signal bars.',
+    label: 'Source Ranking',
+    meta: 'Top performers by conversion signal',
+    component: VisualRankedSourceTable,
+    data: [
+        { rank: 1, label: 'Google Search', value: 82, color: '#2563eb', meta: 'Lead quality', change: '+12%' },
+        { rank: 2, label: 'LinkedIn', value: 71, color: '#7c3aed', meta: 'B2B intent', change: '+8%' },
+        { rank: 3, label: 'Direct Traffic', value: 58, color: '#16a34a', meta: 'Returning visitors', change: '+4%' },
+        { rank: 4, label: 'Facebook Ads', value: 43, color: '#dc2626', meta: 'Cold traffic', change: '-3%' },
+    ],
+},
+
+{
+    key: 'range-variance',
+    name: 'Range Variance',
+    status: 'Testing',
+    purpose: 'Shows position within a defined performance range.',
+    label: 'Range Variance',
+    meta: 'Position inside min → max',
+    component: VisualRangeVariance,
+    data: [
+        { label: 'Google', min: 20, max: 90, value: 72, color: '#2563eb', meta: 'Strong range' },
+        { label: 'Facebook', min: 10, max: 80, value: 55, color: '#7c3aed', meta: 'Mid performance' },
+        { label: 'Direct', min: 30, max: 85, value: 48, color: '#16a34a', meta: 'Stable baseline' },
+        { label: 'Referral', min: 5, max: 60, value: 25, color: '#dc2626', meta: 'Low band' },
+    ],
+},
+
+{
+    key: 'delta-change',
+    name: 'Delta Change',
+    status: 'Testing',
+    purpose: 'Shows movement from previous period to current period.',
+    label: 'Delta Change',
+    meta: 'Previous vs current movement',
+    component: VisualDeltaChange,
+    data: [
+        { label: 'Google', previous: 64, current: 82, color: '#2563eb', meta: 'Search traffic lift' },
+        { label: 'LinkedIn', previous: 58, current: 71, color: '#7c3aed', meta: 'B2B intent rising' },
+        { label: 'Direct', previous: 61, current: 54, color: '#16a34a', meta: 'Returning visitors dipped' },
+        { label: 'Facebook', previous: 49, current: 43, color: '#dc2626', meta: 'Cold traffic down' },
+    ],
+},
+
 ];

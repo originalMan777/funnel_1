@@ -1,67 +1,74 @@
 <script setup lang="ts">
-withDefaults(
+const props = withDefaults(
     defineProps<{
         label?: string;
         value?: string | number;
         meta?: string;
-        foot?: string;
+        delta?: string;
+        deltaDirection?: 'up' | 'down' | 'neutral';
     }>(),
     {
         label: 'Total Leads',
-        value: '0',
+        value: '1,284',
         meta: 'Current captured volume',
-        foot: 'Raw number display',
+        delta: '+18',
+        deltaDirection: 'up',
     },
 );
+
+const signalClass =
+    props.deltaDirection === 'down'
+        ? 'border-red-300/45 bg-red-400/10 text-red-300'
+        : props.deltaDirection === 'neutral'
+            ? 'border-yellow-300/45 bg-yellow-400/10 text-yellow-300'
+            : 'border-green-300/45 bg-green-400/10 text-green-300';
+
+const numberClass =
+    props.deltaDirection === 'down'
+        ? 'text-red-300'
+        : props.deltaDirection === 'neutral'
+            ? 'text-yellow-300'
+            : 'text-green-300';
 </script>
 
 <template>
-    <div class="mt-8 rounded-[1.6rem] border border-slate-700 bg-[linear-gradient(145deg,#1e293b,#0f172a)] p-5 shadow-[0_28px_70px_rgba(2,6,23,0.55)]">
-        <div class="mb-4 flex items-center justify-between gap-4">
-            <div>
-                <p class="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
+    <div class="w-full max-w-[23rem] rounded-2xl border border-white/12 bg-gradient-to-br from-[#101a33] via-[#071026] to-[#020617] p-6 shadow-2xl shadow-black/40">
+        <div class="relative min-h-[19rem] overflow-hidden rounded-xl border border-white/15 bg-white/[0.04] p-5">
+            <div class="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-blue-500/20 blur-3xl" />
+            <div class="pointer-events-none absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-cyan-400/10 blur-3xl" />
+
+            <div class="relative">
+                <div class="text-xs font-semibold uppercase tracking-[0.24em] text-white/45">
                     {{ label }}
-                </p>
-                <p class="mt-1 text-xs font-medium text-slate-500">
+                </div>
+
+                <div class="mt-2 text-xs text-white/35">
                     {{ meta }}
-                </p>
+                </div>
             </div>
 
-            <div class="h-3 w-3 rounded-full bg-cyan-300 shadow-[0_0_18px_rgba(103,232,249,0.85)]"></div>
-        </div>
+            <div class="relative mt-8 flex justify-center">
+                <div class="relative flex aspect-square w-[15.5rem] items-center justify-center rounded-2xl border border-white/20 bg-gradient-to-br from-white/[0.09] via-white/[0.035] to-black/30 shadow-inner shadow-white/5">
+                    <div
+                        class="absolute right-3 top-3 rounded-md border px-2.5 py-1 text-sm font-semibold"
+                        :class="signalClass"
+                    >
+                        {{ delta }}
+                    </div>
 
-        <div class="rounded-[1.25rem] border border-cyan-200/20 bg-slate-900 p-4 shadow-[inset_0_2px_10px_rgba(255,255,255,0.05)]">
-            <div class="relative overflow-hidden rounded-[1rem] border border-white/10 bg-[radial-gradient(circle_at_30%_10%,rgba(255,255,255,0.28),transparent_18%),linear-gradient(135deg,#0ea5e9,#2563eb_55%,#111827)] px-5 py-10 shadow-[inset_0_0_40px_rgba(255,255,255,0.08)]">
-                <div class="absolute left-0 top-0 h-px w-full bg-white/40"></div>
-                <div class="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-cyan-200/20 blur-2xl"></div>
-
-                <p class="text-center text-[11px] font-bold uppercase tracking-[0.28em] text-cyan-100/80">
-                    Display Value
-                </p>
-
-                <p class="mt-4 text-center text-7xl font-black tracking-[-0.08em] text-white drop-shadow-[0_10px_24px_rgba(15,23,42,0.45)]">
-                    {{ value }}
-                </p>
-            </div>
-        </div>
-
-        <div class="mt-5 grid grid-cols-2 gap-3">
-            <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-                <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">
-                    Type
-                </p>
-                <p class="mt-1 text-sm font-semibold text-slate-200">
-                    {{ foot }}
-                </p>
+                    <div
+                        class="text-[4.9rem] font-semibold leading-none tracking-tight drop-shadow"
+                        :class="numberClass"
+                    >
+                        {{ value }}
+                    </div>
+                </div>
             </div>
 
-            <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-                <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">
-                    Meaning
-                </p>
-                <p class="mt-1 text-sm font-semibold text-slate-200">
-                    No judgment
-                </p>
+            <div class="relative mt-6">
+                <div class="h-2 w-full overflow-hidden rounded-full border border-white/15 bg-black/35">
+                    <div class="h-full w-[72%] rounded-full bg-gradient-to-r from-blue-800 via-blue-500 to-cyan-300" />
+                </div>
             </div>
         </div>
     </div>
